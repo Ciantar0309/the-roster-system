@@ -1,0 +1,36 @@
+{
+  "name": "the-roster-system",
+  "version": "1.0.0",
+  "description": "Modern staff roster management system",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "npx ts-node src/index.ts",
+    "build": "npx tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ciantar0309/the-roster-system.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Ciantar0309/the-roster-system/issues"
+  },
+  "homepage": "https://github.com/Ciantar0309/the-roster-system#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.90.1",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
