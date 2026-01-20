@@ -20,8 +20,6 @@ from solver.roster_solver import (
 
 roster_solve_bp = Blueprint("roster_solve", __name__)
 
-
-
 DAY_MAP = {"Mon": 0, "Tue": 1, "Wed": 2, "Thu": 3, "Fri": 4, "Sat": 5, "Sun": 6}
 
 @roster_solve_bp.route("/api/roster/solve", methods=["POST"])
@@ -67,7 +65,6 @@ def solve_roster():
         # ---- leave requests ----
         leave_requests = []
         for lr in data.get("leaveRequests", []) or []:
-            # frontend already filters approved, but keep safe
             if lr.get("status") != "approved":
                 continue
             leave_requests.append(LeaveRequest(
@@ -86,6 +83,14 @@ def solve_roster():
             elif isinstance(v, str) and v:
                 fixed_days_off[key] = DAY_MAP.get(v[:3].title(), -1)
 
+        # ---- previous week Sunday shifts (for cross-week day-in/day-out) ----
+        previous_week_sunday_shifts = data.get("previousWeekSundayShifts", []) or []
+        
+        if previous_week_sunday_shifts:
+            print(f"📅 Received {len(previous_week_sunday_shifts)} Sunday shifts from previous week")
+            for shift in previous_week_sunday_shifts:
+                print(f"   - Shop {shift.get('shopId')}, Employee {shift.get('employeeId')}")
+
         # ---- build templates + demands from config ----
         templates = build_templates_from_config(data["shopRequirements"], data["shops"])
         demands = build_demands_from_config(data["shopRequirements"], data["shops"])
@@ -97,7 +102,8 @@ def solve_roster():
             assignments=assignments,
             leave_requests=leave_requests,
             week_start=data["weekStart"],
-            fixed_days_off=fixed_days_off
+            fixed_days_off=fixed_days_off,
+            previous_week_sunday_shifts=previous_week_sunday_shifts  # NEW
         )
 
         result = solver.solve(time_limit_seconds=60)
@@ -114,3 +120,4 @@ def solve_roster():
             "error": str(e),
             "trace": traceback.format_exc()
         }), 500
+    

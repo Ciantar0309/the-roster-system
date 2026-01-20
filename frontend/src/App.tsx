@@ -1440,38 +1440,57 @@ const SHOP_REQUIREMENTS: Record<string, ShopReq> = {
 };
 
     
-    // Prepare payload for solver
-    const solverPayload = {
-      weekStart: weekStartStr,
-      employees: employees.map(e => ({
-        id: e.id,
-        name: e.name,
-        company: e.company,
-        employmentType: e.employmentType,
-        primaryShopId: e.primaryShopId,
-        secondaryShopIds: e.secondaryShopIds || [],
-        excludeFromRoster: e.excludeFromRoster || false
-      })),
-      shops: shops.map(s => ({
-        id: s.id,
-        name: s.name,
-        company: s.company,
-        assignedEmployees: s.assignedEmployees || []
-      })),
-      shopRequirements: SHOP_REQUIREMENTS,
-      leaveRequests: leaveRequests.filter(l => l.status === 'approved').map(l => ({
-        employeeId: l.employeeId,
-        startDate: typeof l.startDate === 'string' ? l.startDate : format(l.startDate, 'yyyy-MM-dd'),
-        endDate: typeof l.endDate === 'string' ? l.endDate : format(l.endDate, 'yyyy-MM-dd'),
-        status: l.status
-      })),
-      fixedDaysOff: {
-        'Ricky': 'Mon',
-        'Anus': 'Wed'
-      },
-      amOnlyEmployees: ['Joseph'],
-      excludedEmployeeIds: [31]
-    };
+// Get previous week's Sunday shifts for day-in-day-out constraint
+const previousSunday = addDays(currentWeekStart, -1); // Sunday before this Monday
+const previousSundayStr = format(previousSunday, 'yyyy-MM-dd');
+
+const previousWeekSundayShifts = shifts
+  .filter(s => {
+    const shiftDate = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
+    return shiftDate === previousSundayStr;
+  })
+  .map(s => ({
+    shopId: s.shopId,
+    employeeId: s.employeeId,
+    shiftType: s.shiftType
+  }));
+
+console.log('📅 Previous Sunday shifts:', previousWeekSundayShifts);
+
+// Prepare payload for solver
+const solverPayload = {
+  weekStart: weekStartStr,
+  employees: employees.map(e => ({
+    id: e.id,
+    name: e.name,
+    company: e.company,
+    employmentType: e.employmentType,
+    primaryShopId: e.primaryShopId,
+    secondaryShopIds: e.secondaryShopIds || [],
+    excludeFromRoster: e.excludeFromRoster || false
+  })),
+  shops: shops.map(s => ({
+    id: s.id,
+    name: s.name,
+    company: s.company,
+    assignedEmployees: s.assignedEmployees || []
+  })),
+  shopRequirements: SHOP_REQUIREMENTS,
+  leaveRequests: leaveRequests.filter(l => l.status === 'approved').map(l => ({
+    employeeId: l.employeeId,
+    startDate: typeof l.startDate === 'string' ? l.startDate : format(l.startDate, 'yyyy-MM-dd'),
+    endDate: typeof l.endDate === 'string' ? l.endDate : format(l.endDate, 'yyyy-MM-dd'),
+    status: l.status
+  })),
+  fixedDaysOff: {
+    'Ricky': 'Mon',
+    'Anus': 'Wed'
+  },
+  amOnlyEmployees: ['Joseph'],
+  excludedEmployeeIds: [31],
+  previousWeekSundayShifts: previousWeekSundayShifts  // NEW: Pass Sunday shifts
+};
+
     
     console.log('📤 Sending to solver:', solverPayload);
     
@@ -2433,7 +2452,11 @@ function ShiftModal({ isOpen, onClose, shift, employees, shop, date, onSave, onD
             </div>
             <div>
               <span className="text-gray-500">Date:</span>
-              <p className="font-medium">{date ? format(parseISO(date), 'EEE, MMM d, yyyy') : 'Unknown'}</p>
+              <p className="font-medium">
+  {date 
+    ? format(typeof date === 'string' ? parseISO(date) : date, 'EEE, MMM d, yyyy') 
+    : 'Unknown'}
+</p>
             </div>
           </div>
         </div>
@@ -2498,6 +2521,49 @@ interface OvertimeViewProps {
 function OvertimeView({ employees, shifts }: OvertimeViewProps) {
   const [dateRange, setDateRange] = useState<'week' | 'month' | 'custom'>('week');
   const [companyFilter, setCompanyFilter] = useState<'all' | 'CMZ' | 'CS'>('all');
+  const [customStartDate, setCustomStartDate] = useState(format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'));
+  const [customEndDate, setCustomEndDate] = useState(format(addDays(startOfWeek(new Date(), { weekStartsOn: 1 }), 6), 'yyyy-MM-dd'));
+
+  // Get date range boundaries
+  const dateRangeBounds = useMemo(() => {
+    const today = new Date();
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+    
+    switch (dateRange) {
+      case 'week':
+        return {
+          start: currentWeekStart,
+          end: addDays(currentWeekStart, 6),
+          label: `${format(currentWeekStart, 'MMM d')} - ${format(addDays(currentWeekStart, 6), 'MMM d, yyyy')}`
+        };
+      case 'month':
+        const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+        const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        return {
+          start: monthStart,
+          end: monthEnd,
+          label: format(today, 'MMMM yyyy')
+        };
+      case 'custom':
+        return {
+          start: parseISO(customStartDate),
+          end: parseISO(customEndDate),
+          label: `${format(parseISO(customStartDate), 'MMM d')} - ${format(parseISO(customEndDate), 'MMM d, yyyy')}`
+        };
+      default:
+        return {
+          start: currentWeekStart,
+          end: addDays(currentWeekStart, 6),
+          label: 'This Week'
+        };
+    }
+  }, [dateRange, customStartDate, customEndDate]);
+
+  // Calculate weeks in range for proper target calculation
+  const weeksInRange = useMemo(() => {
+    const days = Math.ceil((dateRangeBounds.end.getTime() - dateRangeBounds.start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    return Math.max(1, days / 7);
+  }, [dateRangeBounds]);
 
   // Calculate overtime for each employee
   const overtimeData = useMemo(() => {
@@ -2505,10 +2571,17 @@ function OvertimeView({ employees, shifts }: OvertimeViewProps) {
       .filter(emp => !emp.excludeFromRoster)
       .filter(emp => companyFilter === 'all' || emp.company === companyFilter || emp.company === 'Both')
       .map(emp => {
-        const empShifts = shifts.filter(s => s.employeeId === emp.id);
+        // Filter shifts within date range
+        const empShifts = shifts.filter(s => {
+          if (s.employeeId !== emp.id) return false;
+          const shiftDate = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+          return shiftDate >= dateRangeBounds.start && shiftDate <= dateRangeBounds.end;
+        });
+        
         const totalHours = empShifts.reduce((acc, s) => acc + s.hours, 0);
-        const regularHours = Math.min(totalHours, emp.weeklyHours);
-        const overtimeHours = Math.max(0, totalHours - emp.weeklyHours);
+        const targetHours = emp.weeklyHours * weeksInRange;
+        const regularHours = Math.min(totalHours, targetHours);
+        const overtimeHours = Math.max(0, totalHours - targetHours);
         
         const payScale = DEFAULT_PAY_SCALES.find(ps => ps.id === emp.payScaleId);
         const baseRate = payScale?.hourlyRate || 10;
@@ -2523,6 +2596,7 @@ function OvertimeView({ employees, shifts }: OvertimeViewProps) {
           totalHours,
           regularHours,
           overtimeHours,
+          targetHours,
           basePay,
           overtimePay,
           totalPay,
@@ -2530,7 +2604,8 @@ function OvertimeView({ employees, shifts }: OvertimeViewProps) {
         };
       })
       .sort((a, b) => b.overtimeHours - a.overtimeHours);
-  }, [employees, shifts, companyFilter]);
+  }, [employees, shifts, companyFilter, dateRangeBounds, weeksInRange]);
+
 
   const totals = useMemo(() => ({
     totalHours: overtimeData.reduce((acc, d) => acc + d.totalHours, 0),
@@ -2578,28 +2653,49 @@ function OvertimeView({ employees, shifts }: OvertimeViewProps) {
       </div>
 
       {/* Filters */}
-      <GlassCard className="p-4">
-        <div className="flex flex-wrap gap-4 items-center">
-          <ToggleButtonGroup
-            value={dateRange}
-            onChange={setDateRange}
-            options={[
-              { value: 'week', label: 'This Week' },
-              { value: 'month', label: 'This Month' },
-              { value: 'custom', label: 'Custom' },
-            ]}
-          />
-          <ToggleButtonGroup
-            value={companyFilter}
-            onChange={setCompanyFilter}
-            options={[
-              { value: 'all', label: 'All Companies' },
-              { value: 'CMZ', label: 'CMZ' },
-              { value: 'CS', label: 'CS' },
-            ]}
-          />
-        </div>
-      </GlassCard>
+<GlassCard className="p-4">
+  <div className="flex flex-wrap gap-4 items-center">
+    <ToggleButtonGroup
+      value={dateRange}
+      onChange={setDateRange}
+      options={[
+        { value: 'week', label: 'This Week' },
+        { value: 'month', label: 'This Month' },
+        { value: 'custom', label: 'Custom' },
+      ]}
+    />
+    {dateRange === 'custom' && (
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={customStartDate}
+          onChange={(e) => setCustomStartDate(e.target.value)}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+        />
+        <span className="text-gray-500">to</span>
+        <input
+          type="date"
+          value={customEndDate}
+          onChange={(e) => setCustomEndDate(e.target.value)}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+        />
+      </div>
+    )}
+    <ToggleButtonGroup
+      value={companyFilter}
+      onChange={setCompanyFilter}
+      options={[
+        { value: 'all', label: 'All Companies' },
+        { value: 'CMZ', label: 'CMZ' },
+        { value: 'CS', label: 'CS' },
+      ]}
+    />
+    <div className="ml-auto text-sm text-gray-600">
+      {dateRangeBounds.label}
+    </div>
+  </div>
+</GlassCard>
+
 
       {/* Employee Overtime Table */}
       <GlassCard className="overflow-hidden">
@@ -4044,6 +4140,7 @@ const [showNotifications, setShowNotifications] = useState(false);
 
 
 
+
 // Check for existing login on startup
 useEffect(() => {
   // Check if this is an invite link FIRST
@@ -4150,7 +4247,32 @@ useEffect(() => {
   console.log('📅 Shifts updated:', shifts.length, 'total');
 }, [shifts]);
 
-
+// Load current week's roster on startup (ADD THIS AFTER the main loadData useEffect)
+useEffect(() => {
+  const loadCurrentWeekRoster = async () => {
+    const today = new Date();
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const weekKey = format(currentWeekStart, 'yyyy-MM-dd');
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/roster/load?weekStart=${weekKey}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.shifts && data.shifts.length > 0) {
+          console.log(`📅 Loaded ${data.shifts.length} shifts for current week`);
+          setShifts(data.shifts);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load current week roster:', error);
+    }
+  };
+  
+  // Only load after initial data is loaded
+  if (!isLoading && employees.length > 0) {
+    loadCurrentWeekRoster();
+  }
+}, [isLoading, employees.length]);
 // Load initial data
 useEffect(() => {
   const loadData = async () => {
