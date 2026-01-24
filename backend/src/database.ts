@@ -1,3 +1,4 @@
+// backend/src/database.ts
 import Database from 'better-sqlite3';
 import path from 'path';
 
@@ -8,8 +9,23 @@ const db = new Database(dbPath);
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
 
+// Helper function to safely add columns (migrations)
+function addColumnIfNotExists(table: string, column: string, definition: string) {
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    console.log(`  ✅ Added column: ${table}.${column}`);
+  } catch (e: any) {
+    // Column already exists - this is fine
+    if (!e.message.includes('duplicate column')) {
+      console.error(`  ⚠️ Error adding ${table}.${column}:`, e.message);
+    }
+  }
+}
+
 // Initialize tables
 export function initializeDatabase() {
+  console.log('🔧 Initializing database...');
+
   // Shops table
   db.exec(`
     CREATE TABLE IF NOT EXISTS shops (
@@ -19,14 +35,29 @@ export function initializeDatabase() {
       isActive INTEGER DEFAULT 1,
       address TEXT,
       phone TEXT,
-      openTime TEXT DEFAULT '09:00',
-      closeTime TEXT DEFAULT '18:00',
+      openTime TEXT DEFAULT '06:00',
+      closeTime TEXT DEFAULT '21:00',
       requirements TEXT,
       specialRequests TEXT,
+      fixedDaysOff TEXT,
+      specialDayRules TEXT,
       assignedEmployees TEXT,
-      rules TEXT
+      rules TEXT,
+      minStaffAtOpen INTEGER DEFAULT 1,
+      minStaffMidday INTEGER DEFAULT 1,
+      minStaffAtClose INTEGER DEFAULT 1,
+      canBeSolo INTEGER DEFAULT 0
     )
   `);
+
+  // Run migrations for shops table (in case columns don't exist)
+  console.log('📦 Running shop migrations...');
+  addColumnIfNotExists('shops', 'fixedDaysOff', 'TEXT');
+  addColumnIfNotExists('shops', 'specialDayRules', 'TEXT');
+  addColumnIfNotExists('shops', 'minStaffAtOpen', 'INTEGER DEFAULT 1');
+  addColumnIfNotExists('shops', 'minStaffMidday', 'INTEGER DEFAULT 1');
+  addColumnIfNotExists('shops', 'minStaffAtClose', 'INTEGER DEFAULT 1');
+  addColumnIfNotExists('shops', 'canBeSolo', 'INTEGER DEFAULT 0');
 
   // Employees table
   db.exec(`
@@ -128,25 +159,23 @@ export function initializeDatabase() {
   `);
 
   // Users table for authentication
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    employeeId INTEGER,
-    role TEXT DEFAULT 'employee',
-    isActive INTEGER DEFAULT 1,
-    inviteToken TEXT,
-    inviteExpires TEXT,
-    createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-    lastLogin TEXT,
-    FOREIGN KEY (employeeId) REFERENCES employees(id)
-  )
-`);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      employeeId INTEGER,
+      role TEXT DEFAULT 'employee',
+      isActive INTEGER DEFAULT 1,
+      inviteToken TEXT,
+      inviteExpires TEXT,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      lastLogin TEXT,
+      FOREIGN KEY (employeeId) REFERENCES employees(id)
+    )
+  `);
 
-console.log('✅ Users table ready');
-
-
+  console.log('✅ Users table ready');
   console.log('✅ Database initialized at:', dbPath);
 }
 

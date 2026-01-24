@@ -337,8 +337,8 @@ const filteredRequests = useMemo(() => {
           }}
           request={selectedRequest}
           employee={employees.find(e => e.id === selectedRequest.employeeId)}
-          onApprove={(response) => handleReviewRequest(selectedRequest.id, 'approved', response)}
-          onReject={(response) => handleReviewRequest(selectedRequest.id, 'rejected', response)}
+          onApprove={(response) => handleReviewRequest(String(selectedRequest.id), 'approved', response)}
+          onReject={(response) => handleReviewRequest(String(selectedRequest.id), 'rejected', response)}
         />
       )}
 
@@ -597,7 +597,7 @@ function ViewLeaveModal({ isOpen, onClose, request, employee, reviewer, onDelete
             </div>
             <div>
               <span className="text-gray-500">Submitted:</span>
-              <p className="font-medium">{format(parseISO(request.submittedAt), 'MMM d, yyyy')}</p>
+              <p className="font-medium">{request.submittedAt ? format(parseISO(request.submittedAt), 'MMM d, yyyy') : 'N/A'}</p>
             </div>
             <div>
               <span className="text-gray-500">Start Date:</span>
@@ -646,7 +646,7 @@ function ViewLeaveModal({ isOpen, onClose, request, employee, reviewer, onDelete
               <AnimatedButton 
                 variant="danger"
                 icon={Trash2}
-                onClick={() => onDelete(request.id)}
+                onClick={() => onDelete(String(request.id))}
               >
                 Delete
               </AnimatedButton>

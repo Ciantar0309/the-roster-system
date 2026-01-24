@@ -3,11 +3,9 @@ from flask import Blueprint, request, jsonify
 import sys
 import os
 
-# Get the backend folder path
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOLVER_DIR = os.path.join(BACKEND_DIR, 'solver')
 
-# Add both to path
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 if SOLVER_DIR not in sys.path:
@@ -27,7 +25,6 @@ def solve_roster():
     try:
         data = request.get_json() or {}
 
-        # ---- basic validation ----
         for k in ["weekStart", "employees", "shops", "shopRequirements"]:
             if k not in data:
                 return jsonify({"status": "ERROR", "error": f"Missing field: {k}"}), 400
@@ -44,15 +41,15 @@ def solve_roster():
             employees.append(Employee(
                 id=e["id"],
                 name=e["name"],
-                company=e["company"],
+                company=e.get("company", "CS"),
                 employment_type=e.get("employmentType", "full-time"),
-                primary_shop_id=e.get("primaryShopId"),
-                secondary_shop_ids=e.get("secondaryShopIds", []),
+                primaryShopId=e.get("primaryShopId"),
+                secondaryShopIds=e.get("secondaryShopIds", []),
                 am_only=e["name"].lower() in am_only_names,
                 excluded=False
             ))
 
-        # ---- assignments (stubborn eligibility) ----
+        # ---- assignments ----
         assignments = []
         for shop in data["shops"]:
             for ae in shop.get("assignedEmployees", []) or []:
@@ -83,17 +80,29 @@ def solve_roster():
             elif isinstance(v, str) and v:
                 fixed_days_off[key] = DAY_MAP.get(v[:3].title(), -1)
 
-        # ---- previous week Sunday shifts (for cross-week day-in/day-out) ----
+        # ---- previous week Sunday shifts ----
         previous_week_sunday_shifts = data.get("previousWeekSundayShifts", []) or []
         
         if previous_week_sunday_shifts:
             print(f"📅 Received {len(previous_week_sunday_shifts)} Sunday shifts from previous week")
-            for shift in previous_week_sunday_shifts:
-                print(f"   - Shop {shift.get('shopId')}, Employee {shift.get('employeeId')}")
 
-        # ---- build templates + demands from config ----
+        # ---- Extract shop rules from shops data ----
+        shop_rules = {}
+        for shop in data["shops"]:
+            shop_name = shop["name"].lower()
+            shop_rules[shop_name] = {
+                "id": shop["id"],
+                "name": shop["name"],
+                "specialRequests": shop.get("specialRequests", []),
+                "rules": shop.get("rules", {}),
+                "requirements": shop.get("requirements", [])
+            }
+        
+        print(f"📋 Shop rules loaded for: {list(shop_rules.keys())}")
+
+        # ---- build templates + demands ----
         templates = build_templates_from_config(data["shopRequirements"], data["shops"])
-        demands = build_demands_from_config(data["shopRequirements"], data["shops"])
+        demands = build_demands_from_config(data["shopRequirements"], data["shops"], shop_rules)
 
         solver = RosterSolver(
             employees=employees,
@@ -103,7 +112,8 @@ def solve_roster():
             leave_requests=leave_requests,
             week_start=data["weekStart"],
             fixed_days_off=fixed_days_off,
-            previous_week_sunday_shifts=previous_week_sunday_shifts  # NEW
+            previous_week_sunday_shifts=previous_week_sunday_shifts,
+            shop_rules=shop_rules
         )
 
         result = solver.solve(time_limit_seconds=60)
@@ -120,4 +130,3 @@ def solve_roster():
             "error": str(e),
             "trace": traceback.format_exc()
         }), 500
-    

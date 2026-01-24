@@ -1,18 +1,18 @@
 // frontend/src/components/ShopsView.tsx
 import React, { useState, useMemo, useCallback, memo } from 'react';
 import { 
-  Store, Plus, Edit2, Trash2, Users, Power, PowerOff, 
-  Clock, MapPin, Phone, Calendar, 
-  X, Check, Star, ChevronDown, ChevronUp
+  Store, Plus, Edit2, Trash2, MapPin, Phone, Clock,
+  Users, Check, Calendar, X, AlertCircle, Power
 } from 'lucide-react';
 import { 
-  GlassCard, Avatar, Badge, SearchInput, Modal, 
-  FormInput, FormSelect, TabButton, AnimatedButton, 
-  ToggleButtonGroup, EmptyState, StatCard, useDebounce,
-  ConfirmDialog
+  GlassCard, Badge, SearchInput, Modal, FormInput, 
+  FormSelect, TabButton, StatCard, EmptyState,
+  AnimatedButton, ToggleButtonGroup, ConfirmDialog, useDebounce
 } from './ui';
-import type { Shop, Employee, DayOfWeek, SpecialShiftRequest } from '../types';
-import { DAYS_OF_WEEK, DEFAULT_SHOP_REQUIREMENTS } from '../types';
+import type { 
+  Shop, Employee, DayOfWeek, ShopDayRequirement, 
+  SpecialShiftRequest, SpecialShift, FixedDayOff, SpecialDayRule 
+} from '../types';
 
 // ============== TYPES ==============
 
@@ -23,38 +23,42 @@ interface ShopsViewProps {
   setEmployees: React.Dispatch<React.SetStateAction<Employee[]>>;
 }
 
-type CompanyFilter = 'all' | 'CMZ' | 'CS';
-type StatusFilter = 'all' | 'active' | 'inactive';
+const DAYS: DayOfWeek[] = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const DEFAULT_REQUIREMENTS: ShopDayRequirement[] = DAYS.map(day => ({
+  day,
+  amStaff: 1,
+  pmStaff: 1,
+  allowFullDay: true,
+  isMandatory: false
+}));
 
 // ============== MAIN COMPONENT ==============
 
 const ShopsView = memo(function ShopsView({ 
-  shops = [], 
+  shops, 
   setShops, 
-  employees = [], 
+  employees,
   setEmployees 
 }: ShopsViewProps) {
-  // State
   const [searchTerm, setSearchTerm] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<CompanyFilter>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [companyFilter, setCompanyFilter] = useState<'all' | 'CMZ' | 'CS'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showStaffModal, setShowStaffModal] = useState(false);
-  const [showRequirementsModal, setShowRequirementsModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
 
   const debouncedSearch = useDebounce(searchTerm, 300);
 
-  // Filtered shops
+  // Filter shops
   const filteredShops = useMemo(() => {
     return shops.filter(shop => {
-      const matchesSearch = shop.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-                           shop.address?.toLowerCase().includes(debouncedSearch.toLowerCase());
+      const matchesSearch = shop.name.toLowerCase().includes(debouncedSearch.toLowerCase());
       const matchesCompany = companyFilter === 'all' || shop.company === companyFilter;
       const matchesStatus = statusFilter === 'all' || 
-                           (statusFilter === 'active' ? shop.isActive : !shop.isActive);
+        (statusFilter === 'active' && shop.isActive) || 
+        (statusFilter === 'inactive' && !shop.isActive);
       return matchesSearch && matchesCompany && matchesStatus;
     });
   }, [shops, debouncedSearch, companyFilter, statusFilter]);
@@ -63,108 +67,136 @@ const ShopsView = memo(function ShopsView({
   const stats = useMemo(() => ({
     total: shops.length,
     active: shops.filter(s => s.isActive).length,
+    inactive: shops.filter(s => !s.isActive).length,
     cmz: shops.filter(s => s.company === 'CMZ').length,
     cs: shops.filter(s => s.company === 'CS').length,
   }), [shops]);
 
-  // Handlers
-  const handleToggleActive = useCallback((shopId: number) => {
-    setShops(prev => prev.map(shop => 
-      shop.id === shopId ? { ...shop, isActive: !shop.isActive } : shop
+  // Toggle shop active status
+  const toggleShopActive = useCallback(async (shop: Shop) => {
+    const updatedShop = { ...shop, isActive: !shop.isActive };
+    
+    try {
+      await fetch(`http://localhost:3001/api/shops/${shop.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: updatedShop.isActive }),
+      });
+      console.log(`✅ Shop ${updatedShop.isActive ? 'activated' : 'deactivated'}:`, shop.name);
+    } catch (err) {
+      console.error('Failed to toggle shop status:', err);
+    }
+    
+    setShops(prev => prev.map(s => 
+      s.id === shop.id ? updatedShop : s
     ));
   }, [setShops]);
 
-  const handleDeleteShop = useCallback(() => {
-    if (!selectedShop) return;
-    setShops(prev => prev.filter(shop => shop.id !== selectedShop.id));
-    setShowDeleteConfirm(false);
-    setSelectedShop(null);
-  }, [selectedShop, setShops]);
-
-  const handleSaveShop = useCallback((shopData: Partial<Shop>) => {
+  // Handlers
+  const handleSaveShop = useCallback(async (shopData: Partial<Shop>) => {
     if (selectedShop) {
-      // Edit existing
-      setShops(prev => prev.map(shop => 
-        shop.id === selectedShop.id ? { ...shop, ...shopData } : shop
+      const updatedShop = { ...selectedShop, ...shopData };
+      
+      try {
+        await fetch(`http://localhost:3001/api/shops/${selectedShop.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedShop),
+        });
+        console.log('✅ Shop updated:', updatedShop.name);
+      } catch (err) {
+        console.error('Failed to update shop:', err);
+      }
+      
+      setShops(prev => prev.map(s => 
+        s.id === selectedShop.id ? updatedShop : s
       ));
     } else {
-      // Add new
       const newShop: Shop = {
         id: Date.now(),
         name: shopData.name || 'New Shop',
         company: shopData.company || 'CMZ',
         isActive: true,
+        address: shopData.address || '',
+        phone: shopData.phone || '',
         openTime: shopData.openTime || '06:00',
         closeTime: shopData.closeTime || '21:00',
-        address: shopData.address,
-        phone: shopData.phone,
-        requirements: DEFAULT_SHOP_REQUIREMENTS,
-        specialRequests: [],
+        minStaffAtOpen: shopData.minStaffAtOpen || 1,
+        minStaffMidday: shopData.minStaffMidday || 1,
+        minStaffAtClose: shopData.minStaffAtClose || 1,
+        canBeSolo: shopData.canBeSolo || false,
+        requirements: shopData.requirements || DEFAULT_REQUIREMENTS,
+        specialRequests: shopData.specialRequests || [],
+        fixedDaysOff: shopData.fixedDaysOff || [],
+        specialDayRules: shopData.specialDayRules || [],
         assignedEmployees: [],
+        rules: shopData.rules || {},
       };
+      
+      try {
+        const res = await fetch('http://localhost:3001/api/shops', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newShop),
+        });
+        const saved = await res.json();
+        if (saved.id) newShop.id = saved.id;
+        console.log('✅ Shop created:', newShop.name);
+      } catch (err) {
+        console.error('Failed to create shop:', err);
+      }
+      
       setShops(prev => [...prev, newShop]);
     }
+    
     setShowAddModal(false);
     setShowEditModal(false);
     setSelectedShop(null);
   }, [selectedShop, setShops]);
 
-  const handleUpdateRequirements = useCallback((requirements: Shop['requirements'], specialRequests: Shop['specialRequests']) => {
+  const handleDeleteShop = useCallback(async () => {
     if (!selectedShop) return;
-    setShops(prev => prev.map(shop => 
-      shop.id === selectedShop.id ? { ...shop, requirements, specialRequests } : shop
-    ));
-    setShowRequirementsModal(false);
-    setSelectedShop(null);
-  }, [selectedShop, setShops]);
-
-  const handleUpdateStaffAssignments = useCallback((shopId: number, assignments: Shop['assignedEmployees']) => {
-  setShops(prev => prev.map(shop => 
-    shop.id === shopId ? { ...shop, assignedEmployees: assignments } : shop
-  ));
-
-  // Also update employee records
-  const assignedEmployeeIds = assignments.map(a => a.employeeId);
-  
-  setEmployees(prev => prev.map(emp => {
-    const isPrimary = assignments.some(a => a.employeeId === emp.id && a.isPrimary);
-    const isSecondary = assignments.some(a => a.employeeId === emp.id && !a.isPrimary);
-    const wasHere = emp.primaryShopId === shopId || (emp.secondaryShopIds || []).includes(shopId);
-    const isHereNow = assignedEmployeeIds.includes(emp.id);
     
-    // Skip if employee has no relation to this shop
-    if (!wasHere && !isHereNow) return emp;
-    
-    let newPrimaryShopId = emp.primaryShopId;
-    let newSecondaryShopIds = [...(emp.secondaryShopIds || [])];
-    
-    if (isPrimary) {
-      newPrimaryShopId = shopId;
-      newSecondaryShopIds = newSecondaryShopIds.filter(id => id !== shopId);
-    } else if (isSecondary) {
-      if (emp.primaryShopId === shopId) newPrimaryShopId = undefined;
-      if (!newSecondaryShopIds.includes(shopId)) newSecondaryShopIds.push(shopId);
-    } else if (wasHere && !isHereNow) {
-      // Employee was removed from this shop
-      if (emp.primaryShopId === shopId) newPrimaryShopId = undefined;
-      newSecondaryShopIds = newSecondaryShopIds.filter(id => id !== shopId);
+    try {
+      await fetch(`http://localhost:3001/api/shops/${selectedShop.id}`, {
+        method: 'DELETE',
+      });
+      console.log('✅ Shop deleted:', selectedShop.name);
+    } catch (err) {
+      console.error('Failed to delete shop:', err);
     }
     
-    return { ...emp, primaryShopId: newPrimaryShopId, secondaryShopIds: newSecondaryShopIds };
-  }));
-  
-  setShowStaffModal(false);
-  setSelectedShop(null);
-}, [setShops, setEmployees]);
+    setShops(prev => prev.filter(s => s.id !== selectedShop.id));
+    
+    setEmployees(prev => prev.map(emp => ({
+      ...emp,
+      primaryShopId: emp.primaryShopId === selectedShop.id ? undefined : emp.primaryShopId,
+      secondaryShopIds: (emp.secondaryShopIds || []).filter(id => id !== selectedShop.id),
+    })));
+    
+    setShowDeleteConfirm(false);
+    setSelectedShop(null);
+  }, [selectedShop, setShops, setEmployees]);
 
+  const getAssignedEmployeeCount = (shop: Shop) => {
+    return employees.filter(e => 
+      e.primaryShopId === shop.id || (e.secondaryShopIds || []).includes(shop.id)
+    ).length;
+  };
 
-  // Get assigned staff for a shop
-  const getShopStaff = useCallback((shop: Shop) => {
-    return (shop.assignedEmployees || []).map(assignment => {
-      const employee = employees.find(e => e.id === assignment.employeeId);
-      return employee ? { ...employee, isPrimary: assignment.isPrimary } : null;
-    }).filter(Boolean) as (Employee & { isPrimary: boolean })[];
-  }, [employees]);
+  const getTotalWeeklyHeadcount = (shop: Shop) => {
+    if (!shop.requirements) return 0;
+    return shop.requirements.reduce((total, req) => {
+      return total + (req.amStaff || 0) + (req.pmStaff || 0);
+    }, 0);
+  };
+
+  const getSpecialRequestsCount = (shop: Shop) => {
+    const customShifts = shop.specialRequests?.reduce((sum, r) => sum + r.shifts.length, 0) || 0;
+    const fixedOffs = shop.fixedDaysOff?.length || 0;
+    const dayRules = shop.specialDayRules?.length || 0;
+    return customShifts + fixedOffs + dayRules;
+  };
 
   return (
     <div className="space-y-6">
@@ -172,7 +204,7 @@ const ShopsView = memo(function ShopsView({
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Shop Management</h1>
-          <p className="text-gray-600 mt-1">Manage shops, staff assignments, and scheduling requirements</p>
+          <p className="text-gray-600 mt-1">Manage shops, staffing requirements, and rules</p>
         </div>
         <AnimatedButton 
           icon={Plus} 
@@ -186,42 +218,19 @@ const ShopsView = memo(function ShopsView({
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard
-          icon={Store}
-          label="Total Shops"
-          value={stats.total}
-          gradient="from-blue-500 to-blue-600"
-        />
-        <StatCard
-          icon={Power}
-          label="Active"
-          value={stats.active}
-          gradient="from-green-500 to-emerald-500"
-        />
-        <StatCard
-          icon={Store}
-          label="CMZ Shops"
-          value={stats.cmz}
-          gradient="from-purple-500 to-purple-600"
-        />
-        <StatCard
-          icon={Store}
-          label="CS Shops"
-          value={stats.cs}
-          gradient="from-orange-500 to-orange-600"
-        />
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <StatCard icon={Store} label="Total Shops" value={stats.total} gradient="from-blue-500 to-blue-600" />
+        <StatCard icon={Store} label="Active" value={stats.active} gradient="from-green-500 to-emerald-500" />
+        <StatCard icon={Store} label="Inactive" value={stats.inactive} gradient="from-gray-400 to-gray-500" />
+        <StatCard icon={Store} label="CMZ" value={stats.cmz} gradient="from-purple-500 to-purple-600" />
+        <StatCard icon={Store} label="CS" value={stats.cs} gradient="from-orange-500 to-orange-600" />
       </div>
 
       {/* Filters */}
       <GlassCard className="p-4">
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex-1 min-w-[200px]">
-            <SearchInput
-              value={searchTerm}
-              onChange={setSearchTerm}
-              placeholder="Search shops..."
-            />
+            <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Search shops..." />
           </div>
           <ToggleButtonGroup
             value={companyFilter}
@@ -236,7 +245,7 @@ const ShopsView = memo(function ShopsView({
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { value: 'all', label: 'All' },
+              { value: 'all', label: 'All Status' },
               { value: 'active', label: 'Active' },
               { value: 'inactive', label: 'Inactive' },
             ]}
@@ -249,7 +258,7 @@ const ShopsView = memo(function ShopsView({
         <EmptyState
           icon={Store}
           title="No shops found"
-          description={searchTerm ? "Try adjusting your search or filters" : "Add your first shop to get started"}
+          description={searchTerm ? "Try adjusting your search" : "Add your first shop to get started"}
           action={
             <AnimatedButton icon={Plus} onClick={() => setShowAddModal(true)}>
               Add Shop
@@ -257,35 +266,139 @@ const ShopsView = memo(function ShopsView({
           }
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredShops.map(shop => (
-            <ShopCard
-              key={shop.id}
-              shop={shop}
-              staff={getShopStaff(shop)}
-              onToggleActive={() => handleToggleActive(shop.id)}
-              onEdit={() => {
-                setSelectedShop(shop);
-                setShowEditModal(true);
-              }}
-              onDelete={() => {
-                setSelectedShop(shop);
-                setShowDeleteConfirm(true);
-              }}
-              onManageStaff={() => {
-                setSelectedShop(shop);
-                setShowStaffModal(true);
-              }}
-              onEditRequirements={() => {
-                setSelectedShop(shop);
-                setShowRequirementsModal(true);
-              }}
-            />
+            <GlassCard 
+              key={shop.id} 
+              className={`p-4 ${!shop.isActive ? 'opacity-60 bg-gray-50' : ''}`}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900 text-lg">{shop.name}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant={shop.company === 'CMZ' ? 'purple' : 'warning'}>
+                      {shop.company}
+                    </Badge>
+                    <Badge variant={shop.isActive ? 'success' : 'default'}>
+                      {shop.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                </div>
+                <button
+                  onClick={() => toggleShopActive(shop)}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+                    shop.isActive 
+                      ? 'bg-green-100 text-green-600 hover:bg-green-200' 
+                      : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                  }`}
+                  title={shop.isActive ? 'Deactivate shop' : 'Activate shop'}
+                >
+                  <Power className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-2 text-sm text-gray-600 mb-4">
+                {shop.address && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
+                    <span className="truncate">{shop.address}</span>
+                  </div>
+                )}
+                {shop.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-gray-400" />
+                    <span>{shop.phone}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  <span>{shop.openTime} - {shop.closeTime}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-gray-400" />
+                  <span>{getAssignedEmployeeCount(shop)} employees assigned</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <span>{getTotalWeeklyHeadcount(shop)} shifts/week configured</span>
+                </div>
+                {getSpecialRequestsCount(shop) > 0 && (
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-500" />
+                    <span className="text-amber-600">{getSpecialRequestsCount(shop)} special requests</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Staffing summary */}
+              {shop.minStaffAtOpen !== undefined && (
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                  <span className="px-2 py-0.5 bg-gray-100 rounded">
+                    Staff: {shop.minStaffAtOpen}-{shop.minStaffMidday}-{shop.minStaffAtClose}
+                  </span>
+                  {shop.canBeSolo && (
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded">Solo OK</span>
+                  )}
+                </div>
+              )}
+
+              {/* Rules indicators */}
+              {shop.rules && (
+                <div className="flex flex-wrap gap-1 mb-4">
+                  {shop.rules.sunday_closed && (
+                    <Badge variant="danger">Sun Closed</Badge>
+                  )}
+                  {shop.rules.dayInDayOut && (
+                    <Badge variant="info">Day-in/Day-out</Badge>
+                  )}
+                  {shop.rules.sundayMaxStaff && (
+                    <Badge variant="warning">Sun Max: {shop.rules.sundayMaxStaff}</Badge>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-3 border-t border-gray-100">
+                <AnimatedButton 
+                  variant="ghost" 
+                  size="sm" 
+                  icon={Edit2} 
+                  onClick={() => {
+                    setSelectedShop(shop);
+                    setShowEditModal(true);
+                  }}
+                >
+                  Edit
+                </AnimatedButton>
+                <AnimatedButton 
+                  variant="ghost" 
+                  size="sm" 
+                  icon={Calendar} 
+                  onClick={() => {
+                    setSelectedShop(shop);
+                    setShowEditModal(true);
+                  }}
+                >
+                  Staffing
+                </AnimatedButton>
+                <div className="flex-1" />
+                <AnimatedButton 
+                  variant="ghost" 
+                  size="sm" 
+                  icon={Trash2} 
+                  onClick={() => {
+                    setSelectedShop(shop);
+                    setShowDeleteConfirm(true);
+                  }}
+                >
+                  <span className="sr-only">Delete</span>
+                </AnimatedButton>
+              </div>
+            </GlassCard>
           ))}
         </div>
       )}
 
-      {/* Modals */}
+      {/* Shop Form Modal */}
       <ShopFormModal
         isOpen={showAddModal || showEditModal}
         onClose={() => {
@@ -295,33 +408,10 @@ const ShopsView = memo(function ShopsView({
         }}
         onSave={handleSaveShop}
         shop={selectedShop}
+        employees={employees}
       />
 
-      {selectedShop && (
-        <>
-          <StaffAssignmentModal
-            isOpen={showStaffModal}
-            onClose={() => {
-              setShowStaffModal(false);
-              setSelectedShop(null);
-            }}
-            shop={selectedShop}
-            employees={employees}
-            onUpdateAssignments={(assignments) => handleUpdateStaffAssignments(selectedShop.id, assignments)}
-          />
-
-          <ShopRequirementsModal
-            isOpen={showRequirementsModal}
-            onClose={() => {
-              setShowRequirementsModal(false);
-              setSelectedShop(null);
-            }}
-            shop={selectedShop}
-            onSave={handleUpdateRequirements}
-          />
-        </>
-      )}
-
+      {/* Delete Confirmation */}
       <ConfirmDialog
         isOpen={showDeleteConfirm}
         onClose={() => {
@@ -330,160 +420,13 @@ const ShopsView = memo(function ShopsView({
         }}
         onConfirm={handleDeleteShop}
         title="Delete Shop"
-        message={`Are you sure you want to delete "${selectedShop?.name}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${selectedShop?.name}"? This will also remove all employee assignments to this shop.`}
         variant="danger"
         confirmLabel="Delete"
       />
     </div>
   );
 });
-
-// ============== SHOP CARD ==============
-
-interface ShopCardProps {
-  shop: Shop;
-  staff: (Employee & { isPrimary: boolean })[];
-  onToggleActive: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  onManageStaff: () => void;
-  onEditRequirements: () => void;
-}
-
-function ShopCard({ 
-  shop, 
-  staff = [], 
-  onToggleActive, 
-  onEdit, 
-  onDelete, 
-  onManageStaff,
-  onEditRequirements 
-}: ShopCardProps) {
-  const safeStaff = staff || [];
-  const primaryStaff = safeStaff.filter(s => s.isPrimary);
-  const secondaryStaff = safeStaff.filter(s => !s.isPrimary);
-  
-  const totalWeeklyShifts = (shop.requirements || []).reduce((acc, req) => 
-    acc + req.amStaff + req.pmStaff, 0
-  );
-
-  return (
-    <GlassCard className="p-4">
-      {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-            shop.company === 'CMZ' ? 'bg-purple-100' : 'bg-orange-100'
-          }`}>
-            <Store className={`w-5 h-5 ${
-              shop.company === 'CMZ' ? 'text-purple-600' : 'text-orange-600'
-            }`} />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-900">{shop.name}</h3>
-            <div className="flex items-center gap-2 mt-0.5">
-              <Badge variant={shop.company === 'CMZ' ? 'purple' : 'warning'}>
-                {shop.company}
-              </Badge>
-              <Badge variant={shop.isActive ? 'success' : 'danger'} dot>
-                {shop.isActive ? 'Active' : 'Inactive'}
-              </Badge>
-            </div>
-          </div>
-        </div>
-        <button
-          onClick={onToggleActive}
-          className={`p-2 rounded-lg transition-colors ${
-            shop.isActive 
-              ? 'text-green-600 hover:bg-green-50' 
-              : 'text-gray-400 hover:bg-gray-100'
-          }`}
-          title={shop.isActive ? 'Deactivate' : 'Activate'}
-        >
-          {shop.isActive ? <Power className="w-5 h-5" /> : <PowerOff className="w-5 h-5" />}
-        </button>
-      </div>
-
-      {/* Info */}
-      <div className="space-y-2 mb-4 text-sm text-gray-600">
-        {shop.address && (
-          <div className="flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-gray-400" />
-            <span>{shop.address}</span>
-          </div>
-        )}
-        {shop.phone && (
-          <div className="flex items-center gap-2">
-            <Phone className="w-4 h-4 text-gray-400" />
-            <span>{shop.phone}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-gray-400" />
-          <span>{shop.openTime} - {shop.closeTime}</span>
-        </div>
-      </div>
-
-      {/* Summary Stats */}
-      <div className="grid grid-cols-3 gap-2 mb-4 p-3 bg-gray-50 rounded-lg text-center text-sm">
-        <div>
-          <div className="font-semibold text-gray-900">{safeStaff.length}</div>
-          <div className="text-gray-500 text-xs">Staff</div>
-        </div>
-        <div>
-          <div className="font-semibold text-gray-900">{totalWeeklyShifts}</div>
-          <div className="text-gray-500 text-xs">Weekly Shifts</div>
-        </div>
-        <div>
-          <div className="font-semibold text-gray-900">{(shop.specialRequests || []).length}</div>
-          <div className="text-gray-500 text-xs">Special</div>
-        </div>
-      </div>
-
-      {/* Staff Preview */}
-      {safeStaff.length > 0 && (
-        <div className="mb-4">
-          <div className="text-xs font-medium text-gray-500 mb-2">Assigned Staff</div>
-          <div className="flex flex-wrap gap-1">
-            {primaryStaff.slice(0, 3).map(emp => (
-              <div key={emp.id} className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded-full">
-                <Star className="w-3 h-3 text-blue-500" />
-                <span className="text-xs text-blue-700">{emp.name.split(' ')[0]}</span>
-              </div>
-            ))}
-            {secondaryStaff.slice(0, 3).map(emp => (
-              <div key={emp.id} className="px-2 py-1 bg-gray-100 rounded-full">
-                <span className="text-xs text-gray-600">{emp.name.split(' ')[0]}</span>
-              </div>
-            ))}
-            {safeStaff.length > 6 && (
-              <div className="px-2 py-1 bg-gray-100 rounded-full">
-                <span className="text-xs text-gray-500">+{safeStaff.length - 6}</span>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="flex gap-2 pt-3 border-t border-gray-100">
-        <AnimatedButton variant="ghost" size="sm" icon={Users} onClick={onManageStaff}>
-          Staff
-        </AnimatedButton>
-        <AnimatedButton variant="ghost" size="sm" icon={Calendar} onClick={onEditRequirements}>
-          Schedule
-        </AnimatedButton>
-        <div className="flex-1" />
-        <AnimatedButton variant="ghost" size="sm" icon={Edit2} onClick={onEdit}>
-          Edit
-        </AnimatedButton>
-        <AnimatedButton variant="ghost" size="sm" icon={Trash2} onClick={onDelete}>
-          <span className="sr-only">Delete</span>
-        </AnimatedButton>
-      </div>
-    </GlassCard>
-  );
-}
 
 // ============== SHOP FORM MODAL ==============
 
@@ -492,17 +435,67 @@ interface ShopFormModalProps {
   onClose: () => void;
   onSave: (shop: Partial<Shop>) => void;
   shop: Shop | null;
+  employees: Employee[];
 }
 
-function ShopFormModal({ isOpen, onClose, onSave, shop }: ShopFormModalProps) {
-  const [formData, setFormData] = useState({
+function ShopFormModal({ isOpen, onClose, onSave, shop, employees }: ShopFormModalProps) {
+  const [activeTab, setActiveTab] = useState<'basic' | 'staffing' | 'special' | 'rules'>('basic');
+  
+  const [formData, setFormData] = useState<{
+    name: string;
+    company: Shop['company'];
+    address: string;
+    phone: string;
+    openTime: string;
+    closeTime: string;
+    isActive: boolean;
+    minStaffAtOpen: number;
+    minStaffMidday: number;
+    minStaffAtClose: number;
+    canBeSolo: boolean;
+    requirements: ShopDayRequirement[];
+    specialRequests: SpecialShiftRequest[];
+    fixedDaysOff: FixedDayOff[];
+    specialDayRules: SpecialDayRule[];
+    rules: {
+      sundayMaxStaff: number | undefined;
+      dayInDayOut: boolean;
+      sundayClosed: boolean;
+      splitPreferred: boolean;
+      fullDayOnlyDays: string[];
+    };
+  }>({
     name: '',
-    company: 'CMZ' as Shop['company'],
+    company: 'CMZ',
     address: '',
     phone: '',
     openTime: '06:00',
     closeTime: '21:00',
+    isActive: true,
+    minStaffAtOpen: 1,
+    minStaffMidday: 1,
+    minStaffAtClose: 1,
+    canBeSolo: false,
+    requirements: DEFAULT_REQUIREMENTS,
+    specialRequests: [],
+    fixedDaysOff: [],
+    specialDayRules: [],
+    rules: {
+      sundayMaxStaff: undefined,
+      dayInDayOut: false,
+      sundayClosed: false,
+      splitPreferred: false,
+      fullDayOnlyDays: [],
+    },
   });
+
+  // Get assigned employees for this shop
+  const assignedEmployees = useMemo(() => {
+    if (!shop) return employees;
+    return employees.filter(e => 
+      e.primaryShopId === shop.id || (e.secondaryShopIds || []).includes(shop.id)
+    );
+  }, [shop, employees]);
 
   // Reset form when modal opens
   React.useEffect(() => {
@@ -515,6 +508,30 @@ function ShopFormModal({ isOpen, onClose, onSave, shop }: ShopFormModalProps) {
           phone: shop.phone || '',
           openTime: shop.openTime,
           closeTime: shop.closeTime,
+          isActive: shop.isActive,
+          minStaffAtOpen: shop.minStaffAtOpen || 1,
+          minStaffMidday: shop.minStaffMidday || 1,
+          minStaffAtClose: shop.minStaffAtClose || 1,
+          canBeSolo: shop.canBeSolo || false,
+          requirements: shop.requirements && shop.requirements.length > 0 
+            ? shop.requirements.map(r => ({
+                day: r.day,
+                amStaff: r.amStaff || 0,
+                pmStaff: r.pmStaff || 0,
+                allowFullDay: r.allowFullDay !== false,
+                isMandatory: r.isMandatory || false
+              }))
+            : DEFAULT_REQUIREMENTS,
+          specialRequests: shop.specialRequests || [],
+          fixedDaysOff: shop.fixedDaysOff || [],
+          specialDayRules: shop.specialDayRules || [],
+          rules: {
+            sundayMaxStaff: shop.rules?.sundayMaxStaff,
+            dayInDayOut: shop.rules?.dayInDayOut || false,
+            sundayClosed: shop.rules?.sunday_closed || false,
+            splitPreferred: shop.rules?.splitPreferred || false,
+            fullDayOnlyDays: shop.rules?.fullDayOnlyDays || [],
+          },
         });
       } else {
         setFormData({
@@ -524,7 +541,24 @@ function ShopFormModal({ isOpen, onClose, onSave, shop }: ShopFormModalProps) {
           phone: '',
           openTime: '06:00',
           closeTime: '21:00',
+          isActive: true,
+          minStaffAtOpen: 1,
+          minStaffMidday: 1,
+          minStaffAtClose: 1,
+          canBeSolo: false,
+          requirements: DEFAULT_REQUIREMENTS,
+          specialRequests: [],
+          fixedDaysOff: [],
+          specialDayRules: [],
+          rules: {
+            sundayMaxStaff: undefined,
+            dayInDayOut: false,
+            sundayClosed: false,
+            splitPreferred: false,
+            fullDayOnlyDays: [],
+          }
         });
+        setActiveTab('basic');
       }
     }
   }, [isOpen, shop]);
@@ -532,65 +566,965 @@ function ShopFormModal({ isOpen, onClose, onSave, shop }: ShopFormModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) return;
-    onSave(formData);
+    
+    const rules: Shop['rules'] = {
+      full_day_effect: shop?.rules?.full_day_effect || 'reduces_am',
+    };
+    
+    if (formData.rules.sundayMaxStaff !== undefined && formData.rules.sundayMaxStaff > 0) {
+      rules.sundayMaxStaff = formData.rules.sundayMaxStaff;
+    }
+    if (formData.rules.dayInDayOut) {
+      rules.dayInDayOut = true;
+    }
+    if (formData.rules.sundayClosed) {
+      rules.sunday_closed = true;
+    }
+    if (formData.rules.splitPreferred) {
+      rules.splitPreferred = true;
+    }
+    if (formData.rules.fullDayOnlyDays.length > 0) {
+      rules.fullDayOnlyDays = formData.rules.fullDayOnlyDays;
+    }
+    
+    onSave({
+      name: formData.name,
+      company: formData.company,
+      address: formData.address,
+      phone: formData.phone,
+      openTime: formData.openTime,
+      closeTime: formData.closeTime,
+      isActive: formData.isActive,
+      minStaffAtOpen: formData.minStaffAtOpen,
+      minStaffMidday: formData.minStaffMidday,
+      minStaffAtClose: formData.minStaffAtClose,
+      canBeSolo: formData.canBeSolo,
+      requirements: formData.requirements,
+      specialRequests: formData.specialRequests,
+      fixedDaysOff: formData.fixedDaysOff,
+      specialDayRules: formData.specialDayRules,
+      rules,
+    });
   };
+
+  const updateRequirement = (dayIndex: number, field: keyof ShopDayRequirement, value: number | boolean | string) => {
+    setFormData(prev => ({
+      ...prev,
+      requirements: prev.requirements.map((req, idx) => 
+        idx === dayIndex ? { ...req, [field]: value } : req
+      )
+    }));
+  };
+
+  const toggleFullDayOnlyDay = (day: string) => {
+    setFormData(prev => ({
+      ...prev,
+      rules: {
+        ...prev.rules,
+        fullDayOnlyDays: prev.rules.fullDayOnlyDays.includes(day)
+          ? prev.rules.fullDayOnlyDays.filter(d => d !== day)
+          : [...prev.rules.fullDayOnlyDays, day],
+      },
+    }));
+  };
+
+  // ========== SPECIAL REQUESTS HANDLERS ==========
+  
+  const addCustomShift = (day: DayOfWeek) => {
+    const existingRequest = formData.specialRequests.find(r => r.day === day);
+    
+    if (existingRequest) {
+      setFormData(prev => ({
+        ...prev,
+        specialRequests: prev.specialRequests.map(r => 
+          r.day === day 
+            ? { ...r, shifts: [...r.shifts, { start: '06:30', end: '14:00', count: 1 }] }
+            : r
+        )
+      }));
+    } else {
+      const newRequest: SpecialShiftRequest = {
+        id: `${day}-${Date.now()}`,
+        day,
+        shifts: [{ start: '06:30', end: '14:00', count: 1 }]
+      };
+      setFormData(prev => ({
+        ...prev,
+        specialRequests: [...prev.specialRequests, newRequest]
+      }));
+    }
+  };
+
+  const updateCustomShift = (day: DayOfWeek, shiftIndex: number, field: keyof SpecialShift, value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      specialRequests: prev.specialRequests.map(r => 
+        r.day === day 
+          ? {
+              ...r,
+              shifts: r.shifts.map((s, idx) => 
+                idx === shiftIndex ? { ...s, [field]: value } : s
+              )
+            }
+          : r
+      )
+    }));
+  };
+
+  const removeCustomShift = (day: DayOfWeek, shiftIndex: number) => {
+    setFormData(prev => ({
+      ...prev,
+      specialRequests: prev.specialRequests
+        .map(r => 
+          r.day === day 
+            ? { ...r, shifts: r.shifts.filter((_, idx) => idx !== shiftIndex) }
+            : r
+        )
+        .filter(r => r.shifts.length > 0)
+    }));
+  };
+
+  const addFixedDayOff = () => {
+    if (assignedEmployees.length === 0) return;
+    
+    const newOff: FixedDayOff = {
+      employeeId: assignedEmployees[0].id,
+      employeeName: assignedEmployees[0].name,
+      day: 'Mon'
+    };
+    setFormData(prev => ({
+      ...prev,
+      fixedDaysOff: [...prev.fixedDaysOff, newOff]
+    }));
+  };
+
+  const updateFixedDayOff = (index: number, field: keyof FixedDayOff, value: number | string) => {
+    setFormData(prev => ({
+      ...prev,
+      fixedDaysOff: prev.fixedDaysOff.map((off, idx) => {
+        if (idx !== index) return off;
+        
+        if (field === 'employeeId') {
+          const emp = employees.find(e => e.id === value);
+          return { ...off, employeeId: value as number, employeeName: emp?.name || '' };
+        }
+        return { ...off, [field]: value };
+      })
+    }));
+  };
+
+  const removeFixedDayOff = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      fixedDaysOff: prev.fixedDaysOff.filter((_, idx) => idx !== index)
+    }));
+  };
+
+  const addSpecialDayRule = () => {
+    const newRule: SpecialDayRule = {
+      day: 'Sat',
+      rule: 'one_off_one_full',
+      description: '1 OFF, 1 FULL DAY'
+    };
+    setFormData(prev => ({
+      ...prev,
+      specialDayRules: [...prev.specialDayRules, newRule]
+    }));
+  };
+
+  const updateSpecialDayRule = (index: number, field: keyof SpecialDayRule, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      specialDayRules: prev.specialDayRules.map((rule, idx) => 
+        idx === index ? { ...rule, [field]: value } : rule
+      )
+    }));
+  };
+
+  const removeSpecialDayRule = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      specialDayRules: prev.specialDayRules.filter((_, idx) => idx !== index)
+    }));
+  };
+
+  const totalAM = formData.requirements.reduce((sum, r) => sum + r.amStaff, 0);
+  const totalPM = formData.requirements.reduce((sum, r) => sum + r.pmStaff, 0);
 
   return (
     <Modal 
       isOpen={isOpen} 
       onClose={onClose} 
       title={shop ? 'Edit Shop' : 'Add New Shop'}
-      size="md"
+      size="lg"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <FormInput
-          label="Shop Name"
-          value={formData.name}
-          onChange={(value) => setFormData(prev => ({ ...prev, name: value }))}
-          placeholder="Enter shop name"
-          required
-        />
-
-        <FormSelect
-          label="Company"
-          value={formData.company}
-          onChange={(value) => setFormData(prev => ({ ...prev, company: value as Shop['company'] }))}
-          options={[
-            { value: 'CMZ', label: 'CMZ' },
-            { value: 'CS', label: 'CS' },
-          ]}
-        />
-
-        <FormInput
-          label="Address"
-          value={formData.address}
-          onChange={(value) => setFormData(prev => ({ ...prev, address: value }))}
-          placeholder="Enter shop address"
-        />
-
-        <FormInput
-          label="Phone"
-          type="tel"
-          value={formData.phone}
-          onChange={(value) => setFormData(prev => ({ ...prev, phone: value }))}
-          placeholder="Enter phone number"
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <FormInput
-            label="Opening Time"
-            type="time"
-            value={formData.openTime}
-            onChange={(value) => setFormData(prev => ({ ...prev, openTime: value }))}
-          />
-          <FormInput
-            label="Closing Time"
-            type="time"
-            value={formData.closeTime}
-            onChange={(value) => setFormData(prev => ({ ...prev, closeTime: value }))}
-          />
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-gray-200 pb-2 overflow-x-auto">
+          <TabButton active={activeTab === 'basic'} onClick={() => setActiveTab('basic')}>
+            Basic Info
+          </TabButton>
+          <TabButton active={activeTab === 'staffing'} onClick={() => setActiveTab('staffing')}>
+            📅 Staffing
+          </TabButton>
+          <TabButton active={activeTab === 'special'} onClick={() => setActiveTab('special')}>
+            ⭐ Special
+            {(formData.specialRequests.length > 0 || formData.fixedDaysOff.length > 0 || formData.specialDayRules.length > 0) && (
+              <span className="ml-1 px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded-full">
+                {formData.specialRequests.reduce((sum, r) => sum + r.shifts.length, 0) + formData.fixedDaysOff.length + formData.specialDayRules.length}
+              </span>
+            )}
+          </TabButton>
+          <TabButton active={activeTab === 'rules'} onClick={() => setActiveTab('rules')}>
+            Rules
+          </TabButton>
         </div>
 
+        {/* Basic Info Tab */}
+        {activeTab === 'basic' && (
+          <div className="space-y-4">
+            {/* Active Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Shop Status</label>
+                <p className="text-xs text-gray-500">Inactive shops are excluded from roster generation</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({ ...prev, isActive: !prev.isActive }))}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  formData.isActive ? 'bg-green-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    formData.isActive ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <FormInput
+              label="Shop Name"
+              value={formData.name}
+              onChange={(value) => setFormData(prev => ({ ...prev, name: value }))}
+              placeholder="Enter shop name"
+              required
+            />
+
+            <FormSelect
+              label="Company"
+              value={formData.company}
+              onChange={(value) => setFormData(prev => ({ ...prev, company: value as Shop['company'] }))}
+              options={[
+                { value: 'CMZ', label: 'CMZ' },
+                { value: 'CS', label: 'CS' },
+              ]}
+            />
+
+            <FormInput
+              label="Address"
+              value={formData.address}
+              onChange={(value) => setFormData(prev => ({ ...prev, address: value }))}
+              placeholder="Enter shop address"
+            />
+
+            <FormInput
+              label="Phone"
+              type="tel"
+              value={formData.phone}
+              onChange={(value) => setFormData(prev => ({ ...prev, phone: value }))}
+              placeholder="Enter phone number"
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormInput
+                label="Opening Time"
+                type="time"
+                value={formData.openTime}
+                onChange={(value) => setFormData(prev => ({ ...prev, openTime: value }))}
+              />
+              <FormInput
+                label="Closing Time"
+                type="time"
+                value={formData.closeTime}
+                onChange={(value) => setFormData(prev => ({ ...prev, closeTime: value }))}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Staffing Tab */}
+        {activeTab === 'staffing' && (
+          <div className="space-y-6">
+            {/* MINIMUM STAFFING REQUIREMENTS */}
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <h4 className="text-gray-900 font-medium mb-4 flex items-center gap-2">
+                <Users size={18} className="text-blue-600" />
+                Minimum Staffing Requirements
+              </h4>
+              
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                {/* Min at Open */}
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-1">
+                    Min Staff at Open
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formData.minStaffAtOpen}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      minStaffAtOpen: parseInt(e.target.value) || 1
+                    }))}
+                    className="w-full bg-white text-gray-900 px-3 py-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-500 text-xs">At opening time</span>
+                </div>
+                
+                {/* Min at Midday */}
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-1">
+                    Min Staff Midday
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formData.minStaffMidday}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      minStaffMidday: parseInt(e.target.value) || 1
+                    }))}
+                    className="w-full bg-white text-gray-900 px-3 py-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-500 text-xs">Peak hours (11:00-14:00)</span>
+                </div>
+                
+                {/* Min at Close */}
+                <div>
+                  <label className="block text-gray-700 text-sm font-medium mb-1">
+                    Min Staff at Close
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formData.minStaffAtClose}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      minStaffAtClose: parseInt(e.target.value) || 1
+                    }))}
+                    className="w-full bg-white text-gray-900 px-3 py-2 rounded border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-500 text-xs">At closing time</span>
+                </div>
+              </div>
+              
+              {/* Can Be Solo Toggle */}
+              <div className="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-200">
+                <div>
+                  <span className="text-gray-900 font-medium">Can Be Handled Solo</span>
+                  <p className="text-gray-500 text-sm">Allow 1 person to work alone for entire shift (open to close)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({
+                    ...prev,
+                    canBeSolo: !prev.canBeSolo
+                  }))}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    formData.canBeSolo ? 'bg-green-500' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      formData.canBeSolo ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              
+              {/* Quick Presets */}
+              <div className="mt-4">
+                <span className="text-gray-600 text-sm font-medium">Quick Presets:</span>
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      minStaffAtOpen: 1,
+                      minStaffMidday: 1,
+                      minStaffAtClose: 1,
+                      canBeSolo: true
+                    }))}
+                    className="px-3 py-1 bg-green-100 text-green-700 rounded text-sm hover:bg-green-200"
+                  >
+                    Solo Shop (1-1-1 ✓)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      minStaffAtOpen: 1,
+                      minStaffMidday: 2,
+                      minStaffAtClose: 1,
+                      canBeSolo: false
+                    }))}
+                    className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-sm hover:bg-blue-200"
+                  >
+                    Small Shop (1-2-1)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      minStaffAtOpen: 2,
+                      minStaffMidday: 3,
+                      minStaffAtClose: 2,
+                      canBeSolo: false
+                    }))}
+                    className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-sm hover:bg-purple-200"
+                  >
+                    Large Shop (2-3-2)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      minStaffAtOpen: 3,
+                      minStaffMidday: 4,
+                      minStaffAtClose: 3,
+                      canBeSolo: false
+                    }))}
+                    className="px-3 py-1 bg-orange-100 text-orange-700 rounded text-sm hover:bg-orange-200"
+                  >
+                    Busy Shop (3-4-3)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-green-600">{totalAM}</p>
+                <p className="text-xs text-gray-500">Total AM shifts/week</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-orange-600">{totalPM}</p>
+                <p className="text-xs text-gray-500">Total PM shifts/week</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-blue-600">{totalAM + totalPM}</p>
+                <p className="text-xs text-gray-500">Total shifts/week</p>
+              </div>
+            </div>
+
+            {/* Day-by-day grid */}
+            <div className="border rounded-lg overflow-hidden">
+              <div className="grid grid-cols-5 gap-2 p-3 bg-gray-100 font-medium text-sm text-gray-700">
+                <div>Day</div>
+                <div className="text-center">AM Staff</div>
+                <div className="text-center">PM Staff</div>
+                <div className="text-center">Allow Full Day</div>
+                <div className="text-center">Mandatory</div>
+              </div>
+              
+              {formData.requirements.map((req, idx) => {
+                const isSunday = req.day === 'Sun';
+                const isClosed = isSunday && formData.rules.sundayClosed;
+                
+                return (
+                  <div 
+                    key={req.day} 
+                    className={`grid grid-cols-5 gap-2 p-3 border-t items-center ${
+                      isClosed ? 'bg-red-50 opacity-60' : req.isMandatory ? 'bg-amber-50' : idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    }`}
+                  >
+                    <div className="font-medium">
+                      {req.day}
+                      {isClosed && <span className="text-red-500 text-xs ml-2">(Closed)</span>}
+                      {req.isMandatory && !isClosed && <span className="text-amber-600 text-xs ml-2">★</span>}
+                    </div>
+                    
+                    <div className="flex justify-center">
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={req.amStaff}
+                        onChange={(e) => updateRequirement(idx, 'amStaff', parseInt(e.target.value) || 0)}
+                        disabled={isClosed}
+                        className={`w-16 px-2 py-1 text-center border rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
+                          req.isMandatory ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                        }`}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-center">
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={req.pmStaff}
+                        onChange={(e) => updateRequirement(idx, 'pmStaff', parseInt(e.target.value) || 0)}
+                        disabled={isClosed}
+                        className={`w-16 px-2 py-1 text-center border rounded-lg focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
+                          req.isMandatory ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                        }`}
+                      />
+                    </div>
+                    
+                    <div className="flex justify-center">
+                      <input
+                        type="checkbox"
+                        checked={req.allowFullDay}
+                        onChange={(e) => updateRequirement(idx, 'allowFullDay', e.target.checked)}
+                        disabled={isClosed}
+                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </div>
+                    
+                    <div className="flex justify-center">
+                      <input
+                        type="checkbox"
+                        checked={req.isMandatory}
+                        onChange={(e) => updateRequirement(idx, 'isMandatory', e.target.checked)}
+                        disabled={isClosed}
+                        className="w-5 h-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-xs text-gray-500">
+              <div className="flex items-center gap-1">
+                <span className="text-amber-600">★</span>
+                <span>Mandatory = solver MUST schedule exactly this many staff</span>
+              </div>
+            </div>
+
+            {/* Quick presets for staffing grid */}
+            <div className="flex flex-wrap gap-2">
+              <span className="text-sm text-gray-500 mr-2">Quick presets:</span>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({
+                  ...prev,
+                  requirements: prev.requirements.map(r => ({ ...r, amStaff: 1, pmStaff: 1 }))
+                }))}
+                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg"
+              >
+                All 1+1
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({
+                  ...prev,
+                  requirements: prev.requirements.map(r => ({ ...r, amStaff: 2, pmStaff: 2 }))
+                }))}
+                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg"
+              >
+                All 2+2
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({
+                  ...prev,
+                  requirements: prev.requirements.map(r => ({ ...r, amStaff: 3, pmStaff: 2 }))
+                }))}
+                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg"
+              >
+                All 3+2
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({
+                  ...prev,
+                  requirements: prev.requirements.map((r, idx) => ({
+                    ...r,
+                    amStaff: idx === 0 || idx === 5 ? 4 : 3,
+                    pmStaff: 2
+                  }))
+                }))}
+                className="px-3 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg"
+              >
+                Hamrun Pattern
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({
+                  ...prev,
+                  requirements: prev.requirements.map(r => ({ ...r, isMandatory: true }))
+                }))}
+                className="px-3 py-1 text-xs bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-lg"
+              >
+                All Mandatory
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(prev => ({
+                  ...prev,
+                  requirements: prev.requirements.map(r => ({ ...r, isMandatory: false }))
+                }))}
+                className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg"
+              >
+                Clear Mandatory
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* SPECIAL REQUESTS TAB */}
+        {activeTab === 'special' && (
+          <div className="space-y-6 max-h-[60vh] overflow-y-auto">
+            <div className="p-3 bg-amber-50 rounded-lg text-sm text-amber-700">
+              <strong>Special requests override default staffing.</strong><br/>
+              Add custom shift times, fixed days off for employees, and special day rules.
+            </div>
+
+            {/* Section 1: Custom Shift Times */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">📅 Custom Shift Times</h3>
+                <div className="flex gap-1 flex-wrap">
+                  {DAYS.map(day => (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => addCustomShift(day)}
+                      className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 rounded"
+                    >
+                      +{day}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <p className="text-xs text-gray-500">
+                Example: Saturday - 1 person 6:30-14:00, 1 person 10:00-21:30
+              </p>
+
+              {formData.specialRequests.length === 0 ? (
+                <div className="p-4 border border-dashed border-gray-300 rounded-lg text-center text-gray-500 text-sm">
+                  No custom shifts. Click a day button above to add.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {formData.specialRequests.map((request) => (
+                    <div key={request.id} className="p-3 bg-gray-50 rounded-lg border">
+                      <div className="font-medium text-gray-700 mb-2">{request.day}</div>
+                      <div className="space-y-2">
+                        {request.shifts.map((shift, shiftIdx) => (
+                          <div key={shiftIdx} className="flex items-center gap-2 flex-wrap">
+                            <input
+                              type="number"
+                              min="1"
+                              max="5"
+                              value={shift.count}
+                              onChange={(e) => updateCustomShift(request.day, shiftIdx, 'count', parseInt(e.target.value) || 1)}
+                              className="w-14 px-2 py-1 text-center border border-gray-300 rounded text-sm"
+                            />
+                            <span className="text-gray-500 text-sm">×</span>
+                            <input
+                              type="time"
+                              value={shift.start}
+                              onChange={(e) => updateCustomShift(request.day, shiftIdx, 'start', e.target.value)}
+                              className="px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                            <span className="text-gray-500">→</span>
+                            <input
+                              type="time"
+                              value={shift.end}
+                              onChange={(e) => updateCustomShift(request.day, shiftIdx, 'end', e.target.value)}
+                              className="px-2 py-1 border border-gray-300 rounded text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeCustomShift(request.day, shiftIdx)}
+                              className="p-1 text-red-500 hover:bg-red-50 rounded"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => addCustomShift(request.day)}
+                          className="text-xs text-blue-600 hover:text-blue-700"
+                        >
+                          + Add another shift for {request.day}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Fixed Days Off */}
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">🏖️ Fixed Days Off</h3>
+                <button
+                  type="button"
+                  onClick={addFixedDayOff}
+                  disabled={assignedEmployees.length === 0}
+                  className="px-3 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  + Add Fixed Day Off
+                </button>
+              </div>
+              
+              <p className="text-xs text-gray-500">
+                Example: Ricky - Monday OFF, Anus - Wednesday OFF
+              </p>
+
+              {assignedEmployees.length === 0 && (
+                <div className="p-3 bg-yellow-50 rounded-lg text-sm text-yellow-700">
+                  ⚠️ No employees assigned to this shop yet. Assign employees first to set fixed days off.
+                </div>
+              )}
+
+              {formData.fixedDaysOff.length === 0 ? (
+                <div className="p-4 border border-dashed border-gray-300 rounded-lg text-center text-gray-500 text-sm">
+                  No fixed days off configured.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {formData.fixedDaysOff.map((off, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg flex-wrap">
+                      <select
+                        value={off.employeeId}
+                        onChange={(e) => updateFixedDayOff(idx, 'employeeId', parseInt(e.target.value))}
+                        className="flex-1 min-w-[150px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                      >
+                        {assignedEmployees.map(emp => (
+                          <option key={emp.id} value={emp.id}>{emp.name}</option>
+                        ))}
+                        {!assignedEmployees.find(e => e.id === off.employeeId) && (
+                          <option value={off.employeeId}>{off.employeeName} (not assigned)</option>
+                        )}
+                      </select>
+                      <span className="text-gray-500 text-sm">OFF on</span>
+                      <select
+                        value={off.day}
+                        onChange={(e) => updateFixedDayOff(idx, 'day', e.target.value)}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                      >
+                        {DAYS.map(day => (
+                          <option key={day} value={day}>{day}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => removeFixedDayOff(idx)}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Section 3: Special Day Rules */}
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">📋 Special Day Rules</h3>
+                <button
+                  type="button"
+                  onClick={addSpecialDayRule}
+                  className="px-3 py-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 rounded"
+                >
+                  + Add Day Rule
+                </button>
+              </div>
+              
+              <p className="text-xs text-gray-500">
+                Example: Wednesday/Sunday - 1 OFF, 1 FULL DAY (for Rabat)
+              </p>
+
+              {formData.specialDayRules.length === 0 ? (
+                <div className="p-4 border border-dashed border-gray-300 rounded-lg text-center text-gray-500 text-sm">
+                  No special day rules configured.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {formData.specialDayRules.map((rule, idx) => (
+                    <div key={idx} className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg flex-wrap">
+                      <select
+                        value={rule.day}
+                        onChange={(e) => updateSpecialDayRule(idx, 'day', e.target.value)}
+                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                      >
+                        {DAYS.map(day => (
+                          <option key={day} value={day}>{day}</option>
+                        ))}
+                      </select>
+                      <span className="text-gray-500 text-sm">→</span>
+                      <select
+                        value={rule.rule}
+                        onChange={(e) => updateSpecialDayRule(idx, 'rule', e.target.value)}
+                        className="flex-1 min-w-[150px] px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="one_off_one_full">1 OFF, 1 FULL DAY</option>
+                        <option value="all_full">All FULL DAY shifts</option>
+                        <option value="all_split">All SPLIT shifts (AM/PM)</option>
+                        <option value="custom">Custom (see notes)</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={rule.description || ''}
+                        onChange={(e) => updateSpecialDayRule(idx, 'description', e.target.value)}
+                        placeholder="Notes..."
+                        className="w-32 px-2 py-1.5 border border-gray-300 rounded-lg text-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeSpecialDayRule(idx)}
+                        className="p-1 text-red-500 hover:bg-red-50 rounded"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Rules Tab */}
+        {activeTab === 'rules' && (
+          <div className="space-y-4">
+            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+              These rules affect how the roster generator schedules staff for this shop.
+            </div>
+
+            {/* Sunday Closed */}
+            <div className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg">
+              <input
+                type="checkbox"
+                id="sundayClosed"
+                checked={formData.rules.sundayClosed}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  rules: { ...prev.rules, sundayClosed: e.target.checked },
+                }))}
+                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <label htmlFor="sundayClosed" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Closed on Sundays
+                </label>
+                <p className="text-xs text-gray-500">No staff will be scheduled on Sundays</p>
+              </div>
+            </div>
+
+            {/* Sunday Max Staff */}
+            {!formData.rules.sundayClosed && (
+              <div className="p-4 border border-gray-200 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Sunday Maximum Staff
+                </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Limit total staff on Sundays (leave empty for no limit)
+                </p>
+                <input
+                  type="number"
+                  min="0"
+                  max="10"
+                  value={formData.rules.sundayMaxStaff || ''}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    rules: {
+                      ...prev.rules,
+                      sundayMaxStaff: e.target.value ? parseInt(e.target.value) : undefined,
+                    },
+                  }))}
+                  placeholder="No limit"
+                  className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+
+            {/* Day In Day Out */}
+            <div className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg">
+              <input
+                type="checkbox"
+                id="dayInDayOut"
+                checked={formData.rules.dayInDayOut}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  rules: { ...prev.rules, dayInDayOut: e.target.checked },
+                }))}
+                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <label htmlFor="dayInDayOut" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Day-In/Day-Out Pattern
+                </label>
+                <p className="text-xs text-gray-500">Employees work every other day (no consecutive days)</p>
+              </div>
+            </div>
+
+            {/* Split Preferred */}
+            <div className="flex items-center gap-3 p-4 border border-gray-200 rounded-lg">
+              <input
+                type="checkbox"
+                id="splitPreferred"
+                checked={formData.rules.splitPreferred}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  rules: { ...prev.rules, splitPreferred: e.target.checked },
+                }))}
+                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <div>
+                <label htmlFor="splitPreferred" className="text-sm font-medium text-gray-700 cursor-pointer">
+                  Prefer Split Shifts
+                </label>
+                <p className="text-xs text-gray-500">Prefer AM/PM shifts over FULL day shifts</p>
+              </div>
+            </div>
+
+            {/* Full Day Only Days */}
+            <div className="p-4 border border-gray-200 rounded-lg">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Full Day Only Days
+              </label>
+              <p className="text-xs text-gray-500 mb-3">
+                Select days where only FULL day shifts are allowed
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {DAYS.map(day => (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => toggleFullDayOnlyDay(day)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      formData.rules.fullDayOnlyDays.includes(day)
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {day}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Form Actions */}
         <div className="flex justify-end gap-3 pt-4 border-t">
           <AnimatedButton variant="secondary" onClick={onClose}>
             Cancel
@@ -600,652 +1534,6 @@ function ShopFormModal({ isOpen, onClose, onSave, shop }: ShopFormModalProps) {
           </AnimatedButton>
         </div>
       </form>
-    </Modal>
-  );
-}
-
-// ============== STAFF ASSIGNMENT MODAL ==============
-
-interface StaffAssignmentModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  shop: Shop;
-  employees: Employee[];
-  onUpdateAssignments: (assignments: Shop['assignedEmployees']) => void;
-}
-
-function StaffAssignmentModal({ 
-  isOpen, 
-  onClose, 
-  shop, 
-  employees, 
-  onUpdateAssignments 
-}: StaffAssignmentModalProps) {
-  const [activeTab, setActiveTab] = useState<'assigned' | 'add'>('assigned');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [assignments, setAssignments] = useState<Shop['assignedEmployees']>([]);
-
-  // Initialize assignments when modal opens
-  React.useEffect(() => {
-    if (isOpen) {
-      setAssignments([...shop.assignedEmployees]);
-      setSearchTerm('');
-      setActiveTab('assigned');
-    }
-  }, [isOpen, shop]);
-
-  // Filter employees for "add" tab - show those not already assigned
-  const availableEmployees = useMemo(() => {
-    const assignedIds = new Set(assignments.map(a => a.employeeId));
-    return employees.filter(emp => {
-      if (assignedIds.has(emp.id)) return false;
-      if (emp.excludeFromRoster) return false;
-      // Filter by company
-      if (shop.company !== 'Both' && emp.company !== 'Both' && emp.company !== shop.company) return false;
-      // Filter by search
-      if (searchTerm && !emp.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-      return true;
-    });
-  }, [employees, assignments, shop.company, searchTerm]);
-
-  // Get assigned employees with details
-  const assignedEmployees = useMemo(() => {
-    return assignments.map(assignment => {
-      const employee = employees.find(e => e.id === assignment.employeeId);
-      return employee ? { ...assignment, employee } : null;
-    }).filter(Boolean) as { employeeId: number; isPrimary: boolean; employee: Employee }[];
-  }, [assignments, employees]);
-
-  const handleAddEmployee = (employeeId: number, isPrimary: boolean) => {
-    setAssignments(prev => [...prev, { employeeId, isPrimary }]);
-  };
-
-  const handleRemoveEmployee = (employeeId: number) => {
-    setAssignments(prev => prev.filter(a => a.employeeId !== employeeId));
-  };
-
-  const handleTogglePrimary = (employeeId: number) => {
-    setAssignments(prev => prev.map(a => 
-      a.employeeId === employeeId ? { ...a, isPrimary: !a.isPrimary } : a
-    ));
-  };
-
-  const handleSave = () => {
-    onUpdateAssignments(assignments);
-    onClose();
-  };
-
-  const primaryCount = assignedEmployees.filter(a => a.isPrimary).length;
-  const secondaryCount = assignedEmployees.filter(a => !a.isPrimary).length;
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Manage Staff - ${shop.name}`} size="lg">
-      <div className="space-y-4">
-        {/* Summary */}
-        <div className="flex gap-4 p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <Star className="w-4 h-4 text-blue-500" />
-            <span className="text-sm"><strong>{primaryCount}</strong> Primary</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-gray-500" />
-            <span className="text-sm"><strong>{secondaryCount}</strong> Secondary</span>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-gray-200 pb-2">
-          <TabButton
-            active={activeTab === 'assigned'}
-            onClick={() => setActiveTab('assigned')}
-            badge={assignedEmployees.length}
-          >
-            Assigned Staff
-          </TabButton>
-          <TabButton
-            active={activeTab === 'add'}
-            onClick={() => setActiveTab('add')}
-          >
-            Add Staff
-          </TabButton>
-        </div>
-
-        {/* Assigned Tab */}
-        {activeTab === 'assigned' && (
-          <div className="space-y-2 max-h-80 overflow-y-auto">
-            {assignedEmployees.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>No staff assigned to this shop</p>
-                <button
-                  onClick={() => setActiveTab('add')}
-                  className="text-blue-600 hover:underline mt-2 text-sm"
-                >
-                  Add staff now
-                </button>
-              </div>
-            ) : (
-              assignedEmployees.map(({ employeeId, isPrimary, employee }) => (
-                <div 
-                  key={employeeId}
-                  className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar name={employee.name} size="sm" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900">{employee.name}</span>
-                        {isPrimary && (
-                          <Badge variant="info">
-                            <Star className="w-3 h-3 mr-1" />
-                            Primary
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {employee.employmentType} • {employee.role} • {employee.company}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleTogglePrimary(employeeId)}
-                      className={`px-3 py-1 text-xs rounded-full transition-colors ${
-                        isPrimary 
-                          ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' 
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {isPrimary ? 'Primary' : 'Make Primary'}
-                    </button>
-                    <button
-                      onClick={() => handleRemoveEmployee(employeeId)}
-                      className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Add Staff Tab */}
-        {activeTab === 'add' && (
-          <div className="space-y-3">
-            <SearchInput
-              value={searchTerm}
-              onChange={setSearchTerm}
-              placeholder="Search employees..."
-            />
-            
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {availableEmployees.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No available employees found</p>
-                  <p className="text-xs mt-1">All eligible employees are already assigned</p>
-                </div>
-              ) : (
-                availableEmployees.map(employee => (
-                  <div 
-                    key={employee.id}
-                    className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar name={employee.name} size="sm" />
-                      <div>
-                        <span className="font-medium text-gray-900">{employee.name}</span>
-                        <div className="text-xs text-gray-500">
-                          {employee.employmentType} • {employee.role} • {employee.company}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleAddEmployee(employee.id, false)}
-                        className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                      >
-                        Add Secondary
-                      </button>
-                      <button
-                        onClick={() => handleAddEmployee(employee.id, true)}
-                        className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        Add Primary
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <AnimatedButton variant="secondary" onClick={onClose}>
-            Cancel
-          </AnimatedButton>
-          <AnimatedButton icon={Check} onClick={handleSave}>
-            Save Assignments
-          </AnimatedButton>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-// ============== SHOP REQUIREMENTS MODAL ==============
-
-interface ShopRequirementsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  shop: Shop;
-  onSave: (requirements: Shop['requirements'], specialRequests: Shop['specialRequests']) => void;
-}
-
-function ShopRequirementsModal({ isOpen, onClose, shop, onSave }: ShopRequirementsModalProps) {
-  const [activeTab, setActiveTab] = useState<'daily' | 'special'>('daily');
-  const [requirements, setRequirements] = useState<Shop['requirements']>([]);
-  const [specialRequests, setSpecialRequests] = useState<Shop['specialRequests']>([]);
-  const [expandedDay, setExpandedDay] = useState<DayOfWeek | null>(null);
-
-  // Initialize when modal opens
-  React.useEffect(() => {
-    if (isOpen) {
-      setRequirements([...shop.requirements]);
-      setSpecialRequests([...shop.specialRequests]);
-      setActiveTab('daily');
-      setExpandedDay(null);
-    }
-  }, [isOpen, shop]);
-
-  // Updated to handle boolean values for isMandatory
-const handleRequirementChange = (
-  day: DayOfWeek, 
-  field: string, 
-  value: string | number | boolean
-) => {
-  setRequirements(prev => prev.map(req => 
-    req.day === day 
-      ? { ...req, [field]: value }
-      : req
-  ));
-};
-
-  const handleAddSpecialRequest = () => {
-    const newRequest: SpecialShiftRequest = {
-      id: `special-${Date.now()}`,
-      day: 'Sat',
-      shifts: [{ start: '06:30', end: '14:00' }],
-    };
-    setSpecialRequests(prev => [...prev, newRequest]);
-  };
-
-  const handleRemoveSpecialRequest = (id: string) => {
-    setSpecialRequests(prev => prev.filter(r => r.id !== id));
-  };
-
-  const handleSpecialRequestChange = (id: string, field: 'day', value: DayOfWeek) => {
-    setSpecialRequests(prev => prev.map(r => 
-      r.id === id ? { ...r, [field]: value } : r
-    ));
-  };
-
-  const handleAddShiftToRequest = (requestId: string) => {
-    setSpecialRequests(prev => prev.map(r => 
-      r.id === requestId 
-        ? { ...r, shifts: [...r.shifts, { start: '10:00', end: '18:00' }] }
-        : r
-    ));
-  };
-
-  const handleRemoveShiftFromRequest = (requestId: string, shiftIndex: number) => {
-    setSpecialRequests(prev => prev.map(r => 
-      r.id === requestId 
-        ? { ...r, shifts: r.shifts.filter((_, i) => i !== shiftIndex) }
-        : r
-    ));
-  };
-
-  const handleShiftChange = (requestId: string, shiftIndex: number, field: 'start' | 'end' | 'notes', value: string) => {
-    setSpecialRequests(prev => prev.map(r => 
-      r.id === requestId 
-        ? { 
-            ...r, 
-            shifts: r.shifts.map((s, i) => i === shiftIndex ? { ...s, [field]: value } : s) 
-          }
-        : r
-    ));
-  };
-
-  const handleSave = () => {
-    onSave(requirements, specialRequests);
-  };
-
-  // Calculate weekly totals
-  const weeklyTotals = useMemo(() => {
-    return requirements.reduce((acc, req) => ({
-      amShifts: acc.amShifts + req.amStaff,
-      pmShifts: acc.pmShifts + req.pmStaff,
-    }), { amShifts: 0, pmShifts: 0 });
-  }, [requirements]);
-
-  // Count mandatory days
-  const mandatoryDaysCount = useMemo(() => {
-    return requirements.filter(req => req.isMandatory).length;
-  }, [requirements]);
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} title={`Schedule Requirements - ${shop.name}`} size="xl">
-      <div className="space-y-4">
-        {/* Summary */}
-        <div className="flex gap-4 p-3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
-          <div className="text-sm">
-            <span className="text-gray-600">Weekly AM Shifts:</span>
-            <span className="font-bold text-blue-600 ml-2">{weeklyTotals.amShifts}</span>
-          </div>
-          <div className="text-sm">
-            <span className="text-gray-600">Weekly PM Shifts:</span>
-            <span className="font-bold text-purple-600 ml-2">{weeklyTotals.pmShifts}</span>
-          </div>
-          <div className="text-sm">
-            <span className="text-gray-600">Special Requests:</span>
-            <span className="font-bold text-orange-600 ml-2">{specialRequests.length}</span>
-          </div>
-          <div className="text-sm">
-            <span className="text-gray-600">Mandatory Days:</span>
-            <span className="font-bold text-red-600 ml-2">{mandatoryDaysCount}</span>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex gap-2 border-b border-gray-200 pb-2">
-          <TabButton
-            active={activeTab === 'daily'}
-            onClick={() => setActiveTab('daily')}
-            icon={Calendar}
-          >
-            Daily Requirements
-          </TabButton>
-          <TabButton
-            active={activeTab === 'special'}
-            onClick={() => setActiveTab('special')}
-            badge={specialRequests.length}
-          >
-            Special Shifts
-          </TabButton>
-        </div>
-
-        {/* Daily Requirements Tab */}
-        {activeTab === 'daily' && (
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {DAYS_OF_WEEK.map(day => {
-              const req = requirements.find(r => r.day === day);
-              if (!req) return null;
-              
-              const isExpanded = expandedDay === day;
-              
-              return (
-                <div key={day} className={`border rounded-lg overflow-hidden ${req.isMandatory ? 'border-red-300 bg-red-50/30' : 'border-gray-200'}`}>
-                  {/* Day Header */}
-                  <button
-                    onClick={() => setExpandedDay(isExpanded ? null : day)}
-                    className={`w-full flex items-center justify-between p-3 hover:bg-gray-100 transition-colors ${req.isMandatory ? 'bg-red-50' : 'bg-gray-50'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-gray-900 w-12">{day}</span>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-blue-600">
-                          AM: <strong>{req.amStaff}</strong> staff
-                        </span>
-                        <span className="text-purple-600">
-                          PM: <strong>{req.pmStaff}</strong> staff
-                        </span>
-                        {req.isMandatory && (
-                          <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-medium rounded-full">
-                            MANDATORY
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    {isExpanded ? (
-                      <ChevronUp className="w-5 h-5 text-gray-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
-                    )}
-                  </button>
-                  
-                  {/* Expanded Content */}
-                  {isExpanded && (
-                    <div className="p-4 border-t border-gray-200 bg-white">
-                      <div className="grid grid-cols-2 gap-6">
-                        {/* AM Shift */}
-                        <div className="space-y-3">
-                          <h4 className="font-medium text-blue-600 flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            AM Shift
-                          </h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            <FormInput
-                              label="Start"
-                              type="time"
-                              value={req.amStart || '06:00'}
-                              onChange={(value) => handleRequirementChange(day, 'amStart', value)}
-                            />
-                            <FormInput
-                              label="End"
-                              type="time"
-                              value={req.amEnd || '14:00'}
-                              onChange={(value) => handleRequirementChange(day, 'amEnd', value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Staff Required
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleRequirementChange(day, 'amStaff', Math.max(0, req.amStaff - 1))}
-                                className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg hover:bg-gray-200"
-                              >
-                                -
-                              </button>
-                              <span className="w-12 text-center font-bold text-lg">{req.amStaff}</span>
-                              <button
-                                onClick={() => handleRequirementChange(day, 'amStaff', req.amStaff + 1)}
-                                className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg hover:bg-gray-200"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* PM Shift */}
-                        <div className="space-y-3">
-                          <h4 className="font-medium text-purple-600 flex items-center gap-2">
-                            <Clock className="w-4 h-4" />
-                            PM Shift
-                          </h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            <FormInput
-                              label="Start"
-                              type="time"
-                              value={req.pmStart || '14:00'}
-                              onChange={(value) => handleRequirementChange(day, 'pmStart', value)}
-                            />
-                            <FormInput
-                              label="End"
-                              type="time"
-                              value={req.pmEnd || '21:00'}
-                              onChange={(value) => handleRequirementChange(day, 'pmEnd', value)}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              Staff Required
-                            </label>
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => handleRequirementChange(day, 'pmStaff', Math.max(0, req.pmStaff - 1))}
-                                className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg hover:bg-gray-200"
-                              >
-                                -
-                              </button>
-                              <span className="w-12 text-center font-bold text-lg">{req.pmStaff}</span>
-                              <button
-                                onClick={() => handleRequirementChange(day, 'pmStaff', req.pmStaff + 1)}
-                                className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg hover:bg-gray-200"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Mandatory Checkbox */}
-                      <div className="flex items-center gap-3 mt-4 pt-4 border-t border-gray-200">
-                        <input
-                          type="checkbox"
-                          id={`mandatory-${req.day}`}
-                          checked={req.isMandatory || false}
-                          onChange={(e) => handleRequirementChange(day, 'isMandatory', e.target.checked)}
-                          className="w-5 h-5 text-red-600 rounded focus:ring-red-500 cursor-pointer"
-                        />
-                        <label 
-                          htmlFor={`mandatory-${req.day}`}
-                          className="text-sm font-medium text-gray-700 cursor-pointer select-none"
-                        >
-                          Mandatory Staffing
-                        </label>
-                        <span className="text-xs text-gray-500">
-                          (Roster generator will always maintain this exact headcount)
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Special Shifts Tab */}
-        {activeTab === 'special' && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-600">
-                Define custom shift patterns for specific days (e.g., Saturday split shifts)
-              </p>
-              <AnimatedButton size="sm" icon={Plus} onClick={handleAddSpecialRequest}>
-                Add Special Shift
-              </AnimatedButton>
-            </div>
-
-            <div className="space-y-3 max-h-80 overflow-y-auto">
-              {specialRequests.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-                  <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p>No special shift patterns defined</p>
-                  <p className="text-xs mt-1">Add custom shifts for days with unique requirements</p>
-                </div>
-              ) : (
-                specialRequests.map(request => (
-                  <div key={request.id} className="border border-gray-200 rounded-lg p-4 bg-white">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <select
-                          value={request.day}
-                          onChange={(e) => handleSpecialRequestChange(request.id, 'day', e.target.value as DayOfWeek)}
-                          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm font-medium"
-                        >
-                          {DAYS_OF_WEEK.map(day => (
-                            <option key={day} value={day}>{day}</option>
-                          ))}
-                        </select>
-                        <Badge variant="warning">{request.shifts.length} shift(s)</Badge>
-                      </div>
-                      <button
-                        onClick={() => handleRemoveSpecialRequest(request.id)}
-                        className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* Shifts */}
-                    <div className="space-y-2">
-                      {request.shifts.map((shift, index) => (
-                        <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                          <span className="text-xs text-gray-500 w-6">#{index + 1}</span>
-                          <input
-                            type="time"
-                            value={shift.start}
-                            onChange={(e) => handleShiftChange(request.id, index, 'start', e.target.value)}
-                            className="px-2 py-1 border border-gray-300 rounded text-sm"
-                          />
-                          <span className="text-gray-400">to</span>
-                          <input
-                            type="time"
-                            value={shift.end}
-                            onChange={(e) => handleShiftChange(request.id, index, 'end', e.target.value)}
-                            className="px-2 py-1 border border-gray-300 rounded text-sm"
-                          />
-                          <input
-                            type="text"
-                            value={shift.notes || ''}
-                            onChange={(e) => handleShiftChange(request.id, index, 'notes', e.target.value)}
-                            placeholder="Notes..."
-                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm"
-                          />
-                          {request.shifts.length > 1 && (
-                            <button
-                              onClick={() => handleRemoveShiftFromRequest(request.id, index)}
-                              className="p-1 text-red-500 hover:bg-red-100 rounded transition-colors"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={() => handleAddShiftToRequest(request.id)}
-                      className="mt-2 text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Add another shift
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Example hint */}
-            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
-              <strong>Example:</strong> For Siġġiewi on Saturday, you might add:
-              <ul className="list-disc list-inside mt-1 text-xs">
-                <li>Shift 1: 06:30 - 14:00</li>
-                <li>Shift 2: 10:00 - 21:30</li>
-              </ul>
-            </div>
-          </div>
-        )}
-
-        {/* Footer */}
-        <div className="flex justify-end gap-3 pt-4 border-t">
-          <AnimatedButton variant="secondary" onClick={onClose}>
-            Cancel
-          </AnimatedButton>
-          <AnimatedButton icon={Check} onClick={handleSave}>
-            Save Requirements
-          </AnimatedButton>
-        </div>
-      </div>
     </Modal>
   );
 }

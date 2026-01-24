@@ -149,7 +149,7 @@ const SwapsView = memo(function SwapsView({
                 
                 updatedShifts[requesterShiftIndex] = {
                   ...requesterShift,
-                  employeeId: request.targetEmployeeId,
+                  employeeId: Number(request.targetEmployeeId) || 0,
                   employeeName: targetEmployee?.name || 'Unknown'
                 };
                 
@@ -198,8 +198,8 @@ const SwapsView = memo(function SwapsView({
   const isAdmin = currentUser.role === 'admin' || currentUser.role === 'manager';
 
   // Get shift details helper
-  const getShiftDetails = (shiftId: string) => {
-    return shifts.find(s => s.id === shiftId);
+    const getShiftDetails = (shiftId: string) => {
+    return shifts.find(s => String(s.id) === shiftId);
   };
 
   return (
@@ -291,7 +291,7 @@ const SwapsView = memo(function SwapsView({
           {filteredRequests.map(request => {
             const requester = employees.find(e => e.id === request.requesterId);
             const target = employees.find(e => e.id === request.targetEmployeeId);
-            const shift = getShiftDetails(request.requesterShiftId);
+            const shift = getShiftDetails(String(request.requesterShiftId || ''));
             
             return (
               <GlassCard key={request.id} className="p-4 hover:shadow-md transition-shadow">
@@ -377,9 +377,9 @@ const SwapsView = memo(function SwapsView({
           request={selectedRequest}
           requester={employees.find(e => e.id === selectedRequest.requesterId)}
           target={employees.find(e => e.id === selectedRequest.targetEmployeeId)}
-          shift={getShiftDetails(selectedRequest.requesterShiftId)}
-          onApprove={() => handleReviewRequest(selectedRequest.id, 'approved')}
-          onReject={() => handleReviewRequest(selectedRequest.id, 'rejected')}
+          shift={getShiftDetails(String(selectedRequest.requesterShiftId || ''))}
+          onApprove={() => handleReviewRequest(String(selectedRequest.id), 'approved')}
+          onReject={() => handleReviewRequest(String(selectedRequest.id), 'rejected')}
         />
       )}
 
@@ -394,7 +394,7 @@ const SwapsView = memo(function SwapsView({
           request={selectedRequest}
           requester={employees.find(e => e.id === selectedRequest.requesterId)}
           target={employees.find(e => e.id === selectedRequest.targetEmployeeId)}
-          shift={getShiftDetails(selectedRequest.requesterShiftId)}
+          shift={getShiftDetails(String(selectedRequest.requesterShiftId || ''))}
           reviewer={employees.find(e => e.id === selectedRequest.reviewedBy)}
           onDelete={handleDeleteRequest}
           isAdmin={isAdmin}
@@ -438,7 +438,8 @@ function SwapRequestModal({ isOpen, onClose, onSubmit, employees, shifts, curren
   // Get shifts for selected requester
   const requesterShifts = useMemo(() => {
     if (!formData.requesterId) return [];
-    return shifts.filter(s => s.employeeId === Number(formData.requesterId));
+        return shifts.filter(s => String(s.employeeId) === formData.requesterId);
+
   }, [shifts, formData.requesterId]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -464,7 +465,8 @@ function SwapRequestModal({ isOpen, onClose, onSubmit, employees, shifts, curren
   const targetOptions = useMemo(() => {
     // Get the requester's details
     const requester = employees.find(e => String(e.id) === formData.requesterId);
-    const selectedShift = shifts.find(s => s.id === formData.requesterShiftId);
+    const selectedShift = shifts.find(s => String(s.id) === formData.requesterShiftId);
+
     
     if (!requester) {
       return [{ value: '', label: 'Select requester first' }];
@@ -755,7 +757,7 @@ function ViewSwapModal({
               <AnimatedButton 
                 variant="danger"
                 icon={Trash2}
-                onClick={() => onDelete(request.id)}
+                onClick={() => onDelete(String(request.id))}
               >
                 Delete
               </AnimatedButton>

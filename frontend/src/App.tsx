@@ -55,8 +55,8 @@ const SAMPLE_SHOPS: Shop[] = [
     name: 'Hamrun',
     company: 'CS',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '06:30',
+    closeTime: '21:30',
     requirements: [
       { day: 'Mon', amStaff: 4, pmStaff: 2, isMandatory: true },
       { day: 'Tue', amStaff: 3, pmStaff: 2 },
@@ -76,15 +76,19 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 6, isPrimary: true },
       { employeeId: 7, isPrimary: true }
     ],
-    rules: { mandatory_days: ['Monday', 'Saturday'], full_day_effect: 'reduces_am' }
+    rules: { 
+      mandatory_days: ['Monday', 'Saturday'], 
+      full_day_effect: 'reduces_am',
+      sundayExactStaff: 4
+    }
   },
   {
     id: 2,
     name: 'Tigne Point',
     company: 'CS',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '08:30',
+    closeTime: '20:30',
     requirements: [
       { day: 'Mon', amStaff: 1, pmStaff: 1 },
       { day: 'Tue', amStaff: 1, pmStaff: 1 },
@@ -96,15 +100,19 @@ const SAMPLE_SHOPS: Shop[] = [
     ],
     specialRequests: [],
     assignedEmployees: [{ employeeId: 8, isPrimary: true }],
-    rules: { full_day_effect: 'reduces_am' }
+    rules: { 
+      dayInDayOut: true,
+      preferFullDays: true,
+      full_day_effect: 'reduces_am' 
+    }
   },
   {
     id: 3,
     name: 'Siggiewi',
     company: 'CS',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '06:30',
+    closeTime: '21:30',
     requirements: [
       { day: 'Mon', amStaff: 1, pmStaff: 1 },
       { day: 'Tue', amStaff: 1, pmStaff: 1 },
@@ -122,6 +130,8 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 10, isPrimary: true }
     ],
     rules: { 
+      dayInDayOut: true,
+      preferFullDays: true,
       fixed_days_off: [{ person: 'Ricky', day: 'Monday' }, { person: 'Anus', day: 'Wednesday' }],
       full_day_effect: 'reduces_am'
     }
@@ -131,8 +141,8 @@ const SAMPLE_SHOPS: Shop[] = [
     name: 'Marsaxlokk',
     company: 'CS',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '06:30',
+    closeTime: '21:30',
     requirements: [
       { day: 'Mon', amStaff: 1, pmStaff: 1 },
       { day: 'Tue', amStaff: 1, pmStaff: 1 },
@@ -147,7 +157,11 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 11, isPrimary: true },
       { employeeId: 12, isPrimary: true }
     ],
-    rules: { full_day_effect: 'reduces_am' }
+    rules: { 
+      dayInDayOut: true,
+      preferFullDays: true,
+      full_day_effect: 'reduces_am' 
+    }
   },
   {
     id: 5,
@@ -173,15 +187,19 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 13, isPrimary: true },
       { employeeId: 14, isPrimary: true }
     ],
-    rules: { full_day_effect: 'reduces_am' }
+    rules: { 
+      dayInDayOut: true,
+      preferFullDays: true,
+      full_day_effect: 'reduces_am' 
+    }
   },
   {
     id: 6,
     name: 'Mellieha',
     company: 'CS',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '06:30',
+    closeTime: '21:30',
     requirements: [
       { day: 'Mon', amStaff: 1, pmStaff: 1 },
       { day: 'Tue', amStaff: 1, pmStaff: 1 },
@@ -196,15 +214,19 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 17, isPrimary: true },
       { employeeId: 18, isPrimary: true }
     ],
-    rules: { full_day_effect: 'reduces_am' }
+    rules: { 
+      dayInDayOut: true,
+      preferFullDays: true,
+      full_day_effect: 'reduces_am' 
+    }
   },
   {
     id: 7,
     name: 'Rabat',
     company: 'CS',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '06:30',
+    closeTime: '21:30',
     requirements: [
       { day: 'Mon', amStaff: 1, pmStaff: 1 },
       { day: 'Tue', amStaff: 1, pmStaff: 1 },
@@ -219,15 +241,19 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 15, isPrimary: true },
       { employeeId: 16, isPrimary: true }
     ],
-    rules: { full_day_effect: 'reduces_am' }
+    rules: { 
+      splitPreferred: true,
+      fullDayOnlyDays: ['Wed', 'Sun'],
+      full_day_effect: 'reduces_am' 
+    }
   },
   {
     id: 8,
     name: 'Fgura',
     company: 'CMZ',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '07:00',
+    closeTime: '19:00',
     requirements: [
       { day: 'Mon', amStaff: 3, pmStaff: 2 },
       { day: 'Tue', amStaff: 2, pmStaff: 2 },
@@ -243,15 +269,18 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 22, isPrimary: true },
       { employeeId: 23, isPrimary: true }
     ],
-    rules: { full_day_effect: 'reduces_am' }
+    rules: { 
+      sundayMaxStaff: 2,
+      full_day_effect: 'reduces_am' 
+    }
   },
   {
     id: 9,
     name: 'Carters',
     company: 'CMZ',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '07:00',
+    closeTime: '19:00',
     requirements: [
       { day: 'Mon', amStaff: 3, pmStaff: 2 },
       { day: 'Tue', amStaff: 3, pmStaff: 2 },
@@ -268,15 +297,18 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 29, isPrimary: true },
       { employeeId: 30, isPrimary: true }
     ],
-    rules: {}
+    rules: { 
+      sundayMaxStaff: 2,
+      full_day_effect: 'reduces_am' 
+    }
   },
   {
     id: 10,
     name: 'Zabbar',
     company: 'CMZ',
     isActive: true,
-    openTime: '09:00',
-    closeTime: '21:00',
+    openTime: '07:00',
+    closeTime: '19:00',
     requirements: [
       { day: 'Mon', amStaff: 2, pmStaff: 1 },
       { day: 'Tue', amStaff: 1, pmStaff: 1 },
@@ -291,9 +323,13 @@ const SAMPLE_SHOPS: Shop[] = [
       { employeeId: 19, isPrimary: true },
       { employeeId: 27, isPrimary: true }
     ],
-    rules: { sunday_closed: true, full_day_effect: 'reduces_am' }
+    rules: { 
+      sunday_closed: true, 
+      full_day_effect: 'reduces_am' 
+    }
   }
 ];
+
 
 
 const SAMPLE_EMPLOYEES: Employee[] = [
@@ -375,6 +411,7 @@ const IconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   ClipboardList,
   Repeat,
 };
+
 // ============== SIDEBAR ==============
 
 interface SidebarProps {
@@ -385,7 +422,7 @@ interface SidebarProps {
   setIsCollapsed: (collapsed: boolean) => void;
   isEmployeePreview: boolean;
   setIsEmployeePreview: (preview: boolean) => void;
-  onLogout: () => void;  // ADD THIS LINE
+  onLogout: () => void;
 }
 
 
@@ -445,7 +482,7 @@ function Sidebar({
       <nav className="p-2 flex-1">
         <ul className="space-y-1">
           {navigation.map(item => {
-            const Icon = IconMap[item.icon] || LayoutDashboard;
+            const Icon = (item.icon && IconMap[item.icon]) || LayoutDashboard;
             const isActive = activeView === item.id;
             
             return (
@@ -489,18 +526,18 @@ function Sidebar({
       {!isCollapsed && (
         <div className="p-4 border-t border-slate-700">
           <button 
-  onClick={onLogout}
-  className="w-full flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm"
->
-  <LogOut className="w-4 h-4" />
-  Sign Out
-</button>
-
+            onClick={onLogout}
+            className="w-full flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors text-sm"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
         </div>
       )}
     </aside>
   );
 }
+
 // ============== PART-TIMER AVAILABILITY MODAL ==============
 
 interface PartTimerAvailability {
@@ -561,10 +598,12 @@ function AvailabilityModal({
             company: emp.company,
             primaryShopId: emp.primaryShopId,
             primaryShopName: primaryShop?.name,
-            availability: DAYS_OF_WEEK.reduce((acc, day) => ({
-              ...acc,
-              [day]: { available: false, start: '06:30', end: '21:30' }
-            }), {} as PartTimerAvailability['availability'])
+            availability: DAYS_OF_WEEK.reduce((acc, day) => {
+              if (day) {
+                acc[day] = { available: false, start: '06:30', end: '21:30' };
+              }
+              return acc;
+            }, {} as PartTimerAvailability['availability'])
           };
         });
         setLocalAvailability(defaultAvailability);
@@ -605,10 +644,12 @@ function AvailabilityModal({
       emp.employeeId === employeeId
         ? {
             ...emp,
-            availability: DAYS_OF_WEEK.reduce((acc, day) => ({
-              ...acc,
-              [day]: { ...emp.availability[day], available }
-            }), {} as PartTimerAvailability['availability'])
+            availability: DAYS_OF_WEEK.reduce((acc, day) => {
+              if (day) {
+                acc[day] = { ...emp.availability[day], available };
+              }
+              return acc;
+            }, {} as PartTimerAvailability['availability'])
           }
         : emp
     ));
@@ -631,19 +672,26 @@ function AvailabilityModal({
     ));
   };
 
-  const updateAllTimes = (employeeId: number, field: 'start' | 'end', value: string) => {
-    setLocalAvailability(prev => prev.map(emp => 
-      emp.employeeId === employeeId
-        ? {
-            ...emp,
-            availability: DAYS_OF_WEEK.reduce((acc, day) => ({
-              ...acc,
-              [day]: { ...emp.availability[day], [field]: value }
-            }), {} as PartTimerAvailability['availability'])
-          }
-        : emp
-    ));
-  };
+const updateAllTimes = (employeeId: number, field: 'start' | 'end', value: string) => {
+  setLocalAvailability(prev => prev.map(emp => 
+    emp.employeeId === employeeId
+      ? {
+          ...emp,
+          availability: DAYS_OF_WEEK.reduce((acc, day) => {
+            if (day) {
+              acc[day] = { 
+                available: emp.availability[day]?.available ?? false,
+                start: field === 'start' ? value : (emp.availability[day]?.start ?? '06:30'),
+                end: field === 'end' ? value : (emp.availability[day]?.end ?? '21:30')
+              };
+            }
+            return acc;
+          }, {} as PartTimerAvailability['availability'])
+        }
+      : emp
+  ));
+};
+
 
   const handleSave = () => {
     onSave(localAvailability);
@@ -686,7 +734,7 @@ function AvailabilityModal({
                 }
               </p>
               <p className="text-xs text-blue-600 mt-1">
-                {partTimeEmployees.length} part-time employees • Click days to toggle availability
+                {partTimeEmployees.length} part-time employees — Click days to toggle availability
               </p>
             </div>
             <div className="text-right">
@@ -782,6 +830,7 @@ function AvailabilityModal({
                   <div className="p-4">
                     <div className="grid grid-cols-7 gap-2">
                       {weekDates.map(({ day, date, month }) => {
+                        if (!day) return null;
                         const dayAvail = emp.availability[day];
                         const isAvailable = dayAvail?.available || false;
 
@@ -798,7 +847,7 @@ function AvailabilityModal({
                                   : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                               }`}
                             >
-                              {isAvailable ? '✓' : '—'}
+                              {isAvailable ? '✓' : '−'}
                             </button>
                             {isAvailable && (
                               <div className="mt-2 space-y-1">
@@ -912,9 +961,9 @@ function DashboardView({
     const pendingLeave = leaveRequests.filter(r => r.status === 'pending').length;
     const pendingSwaps = swapRequests.filter(r => r.status === 'pending').length;
     const todayShifts = shifts.filter(s => {
-  const shiftDate = typeof s.date === 'string' ? parseISO(s.date) : s.date;
-  return isToday(shiftDate);
-}).length;
+      const shiftDate = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+      return isToday(shiftDate);
+    }).length;
 
     const totalHoursThisWeek = shifts.reduce((acc, s) => acc + s.hours, 0);
     
@@ -1137,9 +1186,9 @@ function DashboardView({
           ) : (
             <div className="space-y-3">
               {shifts.filter(s => {
-  const shiftDate = typeof s.date === 'string' ? parseISO(s.date) : s.date;
-  return isToday(shiftDate);
-}).slice(0, 5).map(shift => (
+                const shiftDate = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+                return isToday(shiftDate);
+              }).slice(0, 5).map(shift => (
                 <div key={shift.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
                     <Avatar name={shift.employeeName} size="sm" />
@@ -1161,6 +1210,7 @@ function DashboardView({
     </div>
   );
 }
+
 // ============== ROSTER VIEW ==============
 
 interface RosterViewProps {
@@ -1184,15 +1234,15 @@ function RosterView({ shops, employees, shifts, setShifts, leaveRequests }: Rost
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedShopId, setSelectedShopId] = useState<number | null>(null);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-const [partTimerAvailability, setPartTimerAvailability] = useState<PartTimerAvailability[]>([]);
-const [showGenerateModal, setShowGenerateModal] = useState(false);
-const [showClearModal, setShowClearModal] = useState(false);
-const [selectedShopsForAction, setSelectedShopsForAction] = useState<number[]>([]);
+  const [partTimerAvailability, setPartTimerAvailability] = useState<PartTimerAvailability[]>([]);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [selectedShopsForAction, setSelectedShopsForAction] = useState<number[]>([]);
 
-// Load saved roster when week changes
-useEffect(() => {
-  loadRosterFromBackend(currentWeekStart)
-}, [currentWeekStart]);
+  // Load saved roster when week changes
+  useEffect(() => {
+    loadRosterFromBackend(currentWeekStart);
+  }, [currentWeekStart]);
 
 
   // Get week dates
@@ -1204,52 +1254,52 @@ useEffect(() => {
     }));
   }, [currentWeekStart]);
 
-// Filter shifts for current week
-const weekShifts = useMemo(() => {
-  const weekStart = startOfDay(currentWeekStart);
-  const weekEnd = endOfDay(addDays(currentWeekStart, 6));
-  
-  const filtered = shifts.filter(shift => {
-    const shiftDate = typeof shift.date === 'string' ? parseISO(shift.date) : shift.date;
-    const inWeek = shiftDate >= weekStart && shiftDate <= weekEnd;
-    const matchesCompany = companyFilter === 'all' || shift.company === companyFilter;
-    const matchesShop = shopFilter === 'all' || shift.shopId === parseInt(shopFilter);
-    return inWeek && matchesCompany && matchesShop;
-  });
-  
-  console.log('✅ weekShifts count:', filtered.length);
-  
-  return filtered;
-}, [shifts, currentWeekStart, companyFilter, shopFilter]);
-
-
-
-
-
-  /// Group shifts by date and shop
-const shiftsByDateAndShop = useMemo(() => {
-  const grouped: Record<string, Record<number, BackendShift[]>> = {};
-  
-  weekDates.forEach(({ dateStr }) => {
-    grouped[dateStr] = {};
-    shops.forEach(shop => {
-      grouped[dateStr][shop.id] = [];
-    });
-  });
-  
-  weekShifts.forEach(shift => {
-    // Convert shift.date to string if it's a Date object
-    const shiftDateStr = typeof shift.date === 'string' 
-      ? shift.date 
-      : format(shift.date, 'yyyy-MM-dd');
+  // Filter shifts for current week
+  const weekShifts = useMemo(() => {
+    const weekStart = startOfDay(currentWeekStart);
+    const weekEnd = endOfDay(addDays(currentWeekStart, 6));
     
-    if (grouped[shiftDateStr] && grouped[shiftDateStr][shift.shopId]) {
-      grouped[shiftDateStr][shift.shopId].push(shift);
-    }
-  });
-  
-  return grouped;
-}, [weekDates, weekShifts, shops]);
+    const filtered = shifts.filter(shift => {
+      const shiftDate = typeof shift.date === 'string' ? parseISO(shift.date) : shift.date;
+      const inWeek = shiftDate >= weekStart && shiftDate <= weekEnd;
+      const matchesCompany = companyFilter === 'all' || shift.company === companyFilter;
+      const matchesShop = shopFilter === 'all' || shift.shopId === parseInt(shopFilter);
+      return inWeek && matchesCompany && matchesShop;
+    });
+    
+    console.log('📊 weekShifts count:', filtered.length);
+    
+    return filtered;
+  }, [shifts, currentWeekStart, companyFilter, shopFilter]);
+
+
+
+
+
+  // Group shifts by date and shop
+  const shiftsByDateAndShop = useMemo(() => {
+    const grouped: Record<string, Record<number, BackendShift[]>> = {};
+    
+    weekDates.forEach(({ dateStr }) => {
+      grouped[dateStr] = {};
+      shops.forEach(shop => {
+        grouped[dateStr][shop.id] = [];
+      });
+    });
+    
+    weekShifts.forEach(shift => {
+      // Convert shift.date to string if it's a Date object
+      const shiftDateStr = typeof shift.date === 'string' 
+        ? shift.date 
+        : format(shift.date, 'yyyy-MM-dd');
+      
+      if (grouped[shiftDateStr] && grouped[shiftDateStr][shift.shopId]) {
+        grouped[shiftDateStr][shift.shopId].push(shift);
+      }
+    });
+    
+    return grouped;
+  }, [weekDates, weekShifts, shops]);
 
 
   // Filter shops by company
@@ -1267,573 +1317,594 @@ const shiftsByDateAndShop = useMemo(() => {
   const goToToday = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
 
-const handleGenerateRoster = async () => {
-  console.log('=== ROSTER GENERATION v13.0 - CP-SAT SOLVER ===');
-  console.log('Week starting:', format(currentWeekStart, 'yyyy-MM-dd'));
-  
-  setIsGenerating(true);
-  
-  try {
-    const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
+  const handleGenerateRoster = async () => {
+    console.log('=== ROSTER GENERATION v13.0 - CP-SAT SOLVER ===');
+    console.log('Week starting:', format(currentWeekStart, 'yyyy-MM-dd'));
     
-    // Build shop requirements from your existing config
-    type DayPattern = { am: number; pm: number; full: number };
-type DayReq = {
-  closed?: boolean;
-  patterns: DayPattern[];
-  amTimes: { start: string; end: string }[];
-  pmTimes: { start: string; end: string }[];
-  fullTimes: { start: string; end: string }[]; // allow multiple full templates if needed
-};
-
-const P = (am: number, pm: number, full: number): DayPattern => ({ am, pm, full });
-
-// Common pattern for "1 or 0 / 1 or 0 / if used then 1"
-const ONEONE_OR_FULL1: DayPattern[] = [P(1, 1, 0), P(0, 0, 1)];
-
-    type DayCode = DayOfWeek; // you already import DayOfWeek from ./types
-
-type ShopReq = {
-  type: 'single' | 'multi';
-} & Partial<Record<DayCode, DayReq>>;
-
-const SHOP_REQUIREMENTS: Record<string, ShopReq> = {
-  'Tigne Point': {
-    type: 'single',
-    Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
-    Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
-    Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
-    Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
-    Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
-    Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
-    Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
-  },
-
-  'Siggiewi': {
-    type: 'single',
-    Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'10:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'13:30'}], pmTimes: [{start:'13:30',end:'20:30'}], fullTimes: [{start:'06:30',end:'20:30'}] },
-  },
-
-  'Marsaxlokk': {
-    type: 'single',
-    Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-  },
-
-  'Marsascala': {
-    type: 'single',
-    Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    // spreadsheet says FULL N/A on weekend here, so ONLY pattern with AM+PM
-    Sat: { patterns: [P(1,1,0)], amTimes: [{start:'06:30',end:'15:00'}], pmTimes: [{start:'16:30',end:'21:30'}], fullTimes: [] },
-    Sun: { patterns: [P(1,1,0)], amTimes: [{start:'10:00',end:'16:00'}], pmTimes: [{start:'16:30',end:'21:30'}], fullTimes: [] },
-  },
-
-  'Mellieha': {
-    type: 'single',
-    Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-  },
-
-  'Rabat': {
-    type: 'single',
-    Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-    Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
-  },
-
-  'Hamrun': {
-  type: 'multi',
-  Mon: { patterns: [P(4,2,0)], 
-         amTimes: [{start:'06:30',end:'14:00'}],
-         pmTimes: [{start:'14:00',end:'21:30'}],
-         fullTimes: [{start:'06:30',end:'21:30'}]
-  },
-  Tue: { patterns: [P(3,2,0), P(2,1,1)], 
-         amTimes: [{start:'06:30',end:'14:00'}],
-         pmTimes: [{start:'14:00',end:'21:30'}],
-         fullTimes: [{start:'06:30',end:'21:30'}]
-  },
-  Wed: { patterns: [P(3,2,0), P(2,1,1)], 
-         amTimes: [{start:'06:30',end:'14:00'}],
-         pmTimes: [{start:'14:00',end:'21:30'}],
-         fullTimes: [{start:'06:30',end:'21:30'}]
-  },
-  Thu: { patterns: [P(3,2,0), P(2,1,1)], 
-         amTimes: [{start:'06:30',end:'14:00'}],
-         pmTimes: [{start:'14:00',end:'21:30'}],
-         fullTimes: [{start:'06:30',end:'21:30'}]
-  },
-  Fri: { patterns: [P(3,2,0), P(2,1,1)], 
-         amTimes: [{start:'06:30',end:'14:00'}],
-         pmTimes: [{start:'14:00',end:'21:30'}],
-         fullTimes: [{start:'06:30',end:'21:30'}]
-  },
-  Sat: { patterns: [P(4,2,0)], 
-         amTimes: [{start:'06:30',end:'14:00'}],
-         pmTimes: [{start:'14:00',end:'21:30'}],
-         fullTimes: [{start:'06:30',end:'21:30'}]
-  },
-  Sun: { patterns: [P(2,2,0)], 
-         amTimes: [{start:'06:30',end:'14:00'}],
-         pmTimes: [{start:'14:00',end:'21:30'}],
-         fullTimes: []  // No FULL on Sunday - enforced by solver
-  },
-},
-
-
-  'Fgura': {
-    type: 'multi',
-    Mon: { patterns: [P(3,2,0), P(2,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Tue: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Wed: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Thu: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Fri: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:30'}], pmTimes: [{start:'13:30',end:'20:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Sat: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'14:00'}], pmTimes: [{start:'14:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Sun: { patterns: [P(2,0,0)], amTimes: [{start:'08:00',end:'13:00'}], pmTimes: [], fullTimes: [] },
-  },
-
-  'Carters': {
-    type: 'multi',
-    Mon: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Tue: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Wed: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Thu: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Fri: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:30'}], pmTimes: [{start:'13:30',end:'20:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Sat: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'14:00'}], pmTimes: [{start:'14:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Sun: { patterns: [P(2,0,0)], amTimes: [{start:'08:00',end:'13:00'}], pmTimes: [], fullTimes: [] },
-  },
-
-  'Zabbar': {
-    type: 'multi',
-    Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
-    Sun: { closed: true, patterns: [P(0,0,0)], amTimes: [], pmTimes: [], fullTimes: [] },
-  },
-};
-
+    setIsGenerating(true);
     
-// Get previous week's Sunday shifts for day-in-day-out constraint
-const previousSunday = addDays(currentWeekStart, -1); // Sunday before this Monday
-const previousSundayStr = format(previousSunday, 'yyyy-MM-dd');
-
-const previousWeekSundayShifts = shifts
-  .filter(s => {
-    const shiftDate = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
-    return shiftDate === previousSundayStr;
-  })
-  .map(s => ({
-    shopId: s.shopId,
-    employeeId: s.employeeId,
-    shiftType: s.shiftType
-  }));
-
-console.log('📅 Previous Sunday shifts:', previousWeekSundayShifts);
-
-// Prepare payload for solver
-const solverPayload = {
-  weekStart: weekStartStr,
-  employees: employees.map(e => ({
-    id: e.id,
-    name: e.name,
-    company: e.company,
-    employmentType: e.employmentType,
-    primaryShopId: e.primaryShopId,
-    secondaryShopIds: e.secondaryShopIds || [],
-    excludeFromRoster: e.excludeFromRoster || false
-  })),
-  shops: shops.map(s => ({
-    id: s.id,
-    name: s.name,
-    company: s.company,
-    assignedEmployees: s.assignedEmployees || []
-  })),
-  shopRequirements: SHOP_REQUIREMENTS,
-  leaveRequests: leaveRequests.filter(l => l.status === 'approved').map(l => ({
-    employeeId: l.employeeId,
-    startDate: typeof l.startDate === 'string' ? l.startDate : format(l.startDate, 'yyyy-MM-dd'),
-    endDate: typeof l.endDate === 'string' ? l.endDate : format(l.endDate, 'yyyy-MM-dd'),
-    status: l.status
-  })),
-  fixedDaysOff: {
-    'Ricky': 'Mon',
-    'Anus': 'Wed'
-  },
-  amOnlyEmployees: ['Joseph'],
-  excludedEmployeeIds: [31],
-  previousWeekSundayShifts: previousWeekSundayShifts  // NEW: Pass Sunday shifts
-};
-
-    
-    console.log('📤 Sending to solver:', solverPayload);
-    
-    // Call the Python solver
-    const response = await fetch('http://localhost:3002/api/roster/solve', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(solverPayload)
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Solver returned ${response.status}`);
-    }
-    
-    const result = await response.json();
-    console.log('📥 Solver result:', result);
-    
-    if (result.error) {
-      throw new Error(result.error);
-    }
-    
-    if (result.status === 'INFEASIBLE') {
-      console.error('❌ No feasible solution found');
-      alert('Could not generate a feasible roster. Check staff availability and requirements.');
-      return;
-    }
-    
-    // Convert solver shifts to app format
-const generatedShifts: BackendShift[] = result.shifts.map((s: any, idx: number) => ({
-  id: `shift-${Date.now()}-${idx}`,
-  date: s.date,  // Keep as string, don't convert to Date
-  shopId: s.shopId,
-  shopName: s.shopName,
-  employeeId: s.employeeId,
-  employeeName: s.employeeName,
-  startTime: s.startTime,
-  endTime: s.endTime,
-  hours: s.hours,
-  shiftType: s.shiftType as 'AM' | 'PM' | 'FULL' | 'CUSTOM',
-  company: s.company
-}));
-    
-    console.log(`✅ Generated ${generatedShifts.length} shifts`);
-    
-    // Log uncovered demand
-    if (result.uncovered && result.uncovered.length > 0) {
-      console.warn('⚠️ Uncovered demand:', result.uncovered);
-    }
-    
-    // Log employee summary
-    console.log('👥 Employee Summary:');
-    result.employee_summary?.forEach((e: any) => {
-      console.log(`  ${e.name}: ${e.hoursMonSat}h Mon-Sat, ${e.hoursSun}h Sun (target: ${e.target}h) - ${e.status}`);
-    });
-    
-    // Update state
-    const otherWeekShifts = shifts.filter(s => {
-      const shiftDate = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
-      return !shiftDate.startsWith(weekStartStr.substring(0, 7));
-    });
-    
-    setShifts([...otherWeekShifts, ...generatedShifts]);
-    
-    // Save to backend
-    await saveRosterToBackend(weekStartStr, generatedShifts);
-    
-    console.log('🏁 ROSTER GENERATION COMPLETE');
-    
-  } catch (error) {
-    console.error('❌ Generation error:', error);
-    alert(`Roster generation failed: ${error}`);
-  } finally {
-    setIsGenerating(false);
-  }
-};
-
-
-
-
-
-
-// Save roster to backend
-const saveRosterToBackend = async (weekStart: string, shiftsToSave: BackendShift[]) => {
-  console.log('Attempting to save roster:', weekStart, shiftsToSave.length, 'shifts');
-  try {
-    const response = await fetch(`${API_BASE_URL}/roster/save`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ weekStart, shifts: shiftsToSave })
-    });
-    if (response.ok) {
-      console.log(`✅ Roster saved for week ${weekStart}`);
-    } else {
-      console.error('Save failed with status:', response.status);
-    }
-  } catch (error) {
-    console.error('Failed to save roster:', error);
-  }
-};
-
-
-// Load roster from backend
-const loadRosterFromBackend = async (weekStart: Date) => {
-  try {
-    const weekKey = format(weekStart, 'yyyy-MM-dd');
-    console.log('📥 Loading roster for week:', weekKey);
-    
-    const response = await fetch(`http://localhost:3001/api/roster/load?weekStart=${weekKey}`);
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log('📥 Loaded roster data:', data);
+    try {
+      const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
       
-      if (data.shifts && data.shifts.length > 0) {
-        // Convert date strings back to Date objects
-        const loadedShifts = data.shifts.map((s: any) => ({
-          ...s,
-          date: new Date(s.date)
+      // Build shop requirements from your existing config
+      type DayPattern = { am: number; pm: number; full: number };
+      type DayReq = {
+        closed?: boolean;
+        patterns: DayPattern[];
+        amTimes: { start: string; end: string }[];
+        pmTimes: { start: string; end: string }[];
+        fullTimes: { start: string; end: string }[];
+      };
+
+      const P = (am: number, pm: number, full: number): DayPattern => ({ am, pm, full });
+
+      // Common pattern for "1 or 0 / 1 or 0 / if used then 1"
+      const ONEONE_OR_FULL1: DayPattern[] = [P(1, 1, 0), P(0, 0, 1)];
+
+      type DayCode = DayOfWeek;
+
+      type ShopReq = {
+        type: 'single' | 'multi';
+      } & Partial<Record<DayCode, DayReq>>;
+
+      const SHOP_REQUIREMENTS: Record<string, ShopReq> = {
+        'Tigne Point': {
+          type: 'single',
+          Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
+          Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
+          Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
+          Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
+          Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
+          Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
+          Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'08:30',end:'14:30'}], pmTimes: [{start:'14:30',end:'20:30'}], fullTimes: [{start:'08:30',end:'20:30'}] },
+        },
+
+        'Siggiewi': {
+          type: 'single',
+          Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'10:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'13:30'}], pmTimes: [{start:'13:30',end:'20:30'}], fullTimes: [{start:'06:30',end:'20:30'}] },
+        },
+
+        'Marsaxlokk': {
+          type: 'single',
+          Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+        },
+
+        'Marsascala': {
+          type: 'single',
+          Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sat: { patterns: [P(1,1,0)], amTimes: [{start:'06:30',end:'15:00'}], pmTimes: [{start:'16:30',end:'21:30'}], fullTimes: [] },
+          Sun: { patterns: [P(1,1,0)], amTimes: [{start:'10:00',end:'16:00'}], pmTimes: [{start:'16:30',end:'21:30'}], fullTimes: [] },
+        },
+
+        'Mellieha': {
+          type: 'single',
+          Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+        },
+
+        'Rabat': {
+          type: 'single',
+          Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+          Sun: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'06:30',end:'14:00'}], pmTimes: [{start:'14:00',end:'21:30'}], fullTimes: [{start:'06:30',end:'21:30'}] },
+        },
+
+        'Hamrun': {
+          type: 'multi',
+          Mon: { patterns: [P(4,2,0)], 
+                 amTimes: [{start:'06:30',end:'14:00'}],
+                 pmTimes: [{start:'14:00',end:'21:30'}],
+                 fullTimes: [{start:'06:30',end:'21:30'}]
+          },
+          Tue: { patterns: [P(3,2,0), P(2,1,1)], 
+                 amTimes: [{start:'06:30',end:'14:00'}],
+                 pmTimes: [{start:'14:00',end:'21:30'}],
+                 fullTimes: [{start:'06:30',end:'21:30'}]
+          },
+          Wed: { patterns: [P(3,2,0), P(2,1,1)], 
+                 amTimes: [{start:'06:30',end:'14:00'}],
+                 pmTimes: [{start:'14:00',end:'21:30'}],
+                 fullTimes: [{start:'06:30',end:'21:30'}]
+          },
+          Thu: { patterns: [P(3,2,0), P(2,1,1)], 
+                 amTimes: [{start:'06:30',end:'14:00'}],
+                 pmTimes: [{start:'14:00',end:'21:30'}],
+                 fullTimes: [{start:'06:30',end:'21:30'}]
+          },
+          Fri: { patterns: [P(3,2,0), P(2,1,1)], 
+                 amTimes: [{start:'06:30',end:'14:00'}],
+                 pmTimes: [{start:'14:00',end:'21:30'}],
+                 fullTimes: [{start:'06:30',end:'21:30'}]
+          },
+          Sat: { patterns: [P(4,2,0)], 
+                 amTimes: [{start:'06:30',end:'14:00'}],
+                 pmTimes: [{start:'14:00',end:'21:30'}],
+                 fullTimes: [{start:'06:30',end:'21:30'}]
+          },
+          Sun: { patterns: [P(2,2,0)], 
+                 amTimes: [{start:'06:30',end:'14:00'}],
+                 pmTimes: [{start:'14:00',end:'21:30'}],
+                 fullTimes: []
+          },
+        },
+
+
+        'Fgura': {
+          type: 'multi',
+          Mon: { patterns: [P(3,2,0), P(2,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Tue: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Wed: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Thu: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Fri: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:30'}], pmTimes: [{start:'13:30',end:'20:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Sat: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'14:00'}], pmTimes: [{start:'14:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Sun: { patterns: [P(2,0,0)], amTimes: [{start:'08:00',end:'13:00'}], pmTimes: [], fullTimes: [] },
+        },
+
+        'Carters': {
+          type: 'multi',
+          Mon: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Tue: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Wed: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Thu: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Fri: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'13:30'}], pmTimes: [{start:'13:30',end:'20:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Sat: { patterns: [P(3,2,0), P(1,1,1)], amTimes: [{start:'07:00',end:'14:00'}], pmTimes: [{start:'14:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Sun: { patterns: [P(2,0,0)], amTimes: [{start:'08:00',end:'13:00'}], pmTimes: [], fullTimes: [] },
+        },
+
+        'Zabbar': {
+          type: 'multi',
+          Mon: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Tue: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Wed: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Thu: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Fri: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Sat: { patterns: ONEONE_OR_FULL1, amTimes: [{start:'07:00',end:'13:00'}], pmTimes: [{start:'13:00',end:'19:00'}], fullTimes: [{start:'07:00',end:'19:00'}] },
+          Sun: { closed: true, patterns: [P(0,0,0)], amTimes: [], pmTimes: [], fullTimes: [] },
+        },
+      };
+
+      // Get previous week's Sunday shifts for day-in-day-out constraint
+      const previousSunday = addDays(currentWeekStart, -1);
+      const previousSundayStr = format(previousSunday, 'yyyy-MM-dd');
+
+      const previousWeekSundayShifts = shifts
+        .filter(s => {
+          const shiftDate = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
+          return shiftDate === previousSundayStr;
+        })
+        .map(s => ({
+          shopId: s.shopId,
+          employeeId: s.employeeId,
+          shiftType: s.shiftType
         }));
+
+      console.log('📅 Previous Sunday shifts:', previousWeekSundayShifts);
+
+      // Prepare payload for solver
+      const solverPayload = {
+        weekStart: weekStartStr,
+        employees: employees.map(e => ({
+          id: e.id,
+          name: e.name,
+          company: e.company,
+          employmentType: e.employmentType,
+          primaryShopId: e.primaryShopId,
+          secondaryShopIds: e.secondaryShopIds || [],
+          excludeFromRoster: e.excludeFromRoster || false
+        })),
         
-        setShifts(loadedShifts);
-        console.log(`✅ Loaded ${loadedShifts.length} shifts for week ${weekKey}`);
-      } else {
-        console.log('📭 No shifts found for week', weekKey);
-        // Don't clear shifts here - only clear if explicitly generating new roster
+        shops: shops.map(s => ({
+          id: s.id,
+          name: s.name,
+          company: s.company,
+          assignedEmployees: s.assignedEmployees || [],
+          requirements: s.requirements,
+          specialRequests: s.specialRequests,
+          rules: s.rules,
+          openTime: s.openTime,
+          closeTime: s.closeTime
+        })),
+
+        shopRequirements: SHOP_REQUIREMENTS,
+        leaveRequests: leaveRequests.filter(l => l.status === 'approved').map(l => ({
+          employeeId: l.employeeId,
+          startDate: typeof l.startDate === 'string' ? l.startDate : format(l.startDate, 'yyyy-MM-dd'),
+          endDate: typeof l.endDate === 'string' ? l.endDate : format(l.endDate, 'yyyy-MM-dd'),
+          status: l.status
+        })),
+        fixedDaysOff: {
+          'Ricky': 'Mon',
+          'Anus': 'Wed'
+        },
+        amOnlyEmployees: ['Joseph'],
+        excludedEmployeeIds: [31],
+        previousWeekSundayShifts: previousWeekSundayShifts
+      };
+
+      console.log('📤 PAYLOAD TO SOLVER:');
+      console.log('  - Shops:', solverPayload.shops?.length);
+      console.log('  - First shop rules:', solverPayload.shops?.[0]?.rules);
+      console.log('  - First shop specialRequests:', solverPayload.shops?.[0]?.specialRequests);
+      console.log('  - First shop requirements:', solverPayload.shops?.[0]?.requirements);
+      
+      const fgura = solverPayload.shops.find((s: { name: string }) => s.name === 'Fgura');
+      const carters = solverPayload.shops.find((s: { name: string }) => s.name === 'Carters');
+      console.log('🏪 FGURA RULES:', fgura?.rules);
+      console.log('🏪 CARTERS RULES:', carters?.rules);
+
+      console.log('📤 Sending to solver:', solverPayload);
+      
+      // Call the Python solver
+      const response = await fetch('http://localhost:3002/api/roster/solve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(solverPayload)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Solver returned ${response.status}`);
       }
-    } else if (response.status === 404) {
-      console.log('📭 No roster found for week', weekKey);
-    } else {
-      console.error('Failed to load roster:', response.status);
-    }
-  } catch (error) {
-    console.error('Error loading roster:', error);
-  }
-};
-
-
-
-
-
-
-// Clear roster for specific shops
-const handleClearRoster = (shopIds: number[]) => {
-  const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
-  const weekEndDate = addDays(currentWeekStart, 6);
-  const weekEndStr = format(weekEndDate, 'yyyy-MM-dd');
-  
-  setShifts(prev => {
-    const updated = prev.filter(shift => {
-      // Normalize shift date to string for comparison
-      const shiftDateStr = typeof shift.date === 'string' 
-        ? shift.date.substring(0, 10)  // Take only YYYY-MM-DD part
-        : format(shift.date, 'yyyy-MM-dd');
       
-      // Check if shift is in the current week
-      const inWeek = shiftDateStr >= weekStartStr && shiftDateStr <= weekEndStr;
+      const result = await response.json();
+      console.log('📥 Solver result:', result);
       
-      // Keep shift if it's NOT (in this week AND in selected shops)
-      return !(inWeek && shopIds.includes(shift.shopId));
-    });
-    
-    // Auto-save the cleared roster
-    const weekShifts = updated.filter(s => {
-      const d = typeof s.date === 'string' ? s.date.substring(0, 10) : format(s.date, 'yyyy-MM-dd');
-      return d >= weekStartStr && d <= weekEndStr;
-    });
-    saveRosterToBackend(weekStartStr, weekShifts);
-    
-    return updated;
-  });
-};
-
-
-
-// Export to CSV (Excel)
-const exportToCSV = () => {
-  const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
-  const weekEndStr = format(addDays(currentWeekStart, 6), 'yyyy-MM-dd');
-  
-  // Filter shifts for current week
-  const weekEnd = addDays(currentWeekStart, 6);
-  const exportShifts = shifts.filter(s => {
-    const d = parseISO(s.date);
-    return d >= currentWeekStart && d <= weekEnd;
-  });
-  
-  // Sort by date, then shop, then start time
-  exportShifts.sort((a, b) => {
-    if (a.date !== b.date) return a.date.localeCompare(b.date);
-    if (a.shopName !== b.shopName) return a.shopName.localeCompare(b.shopName);
-    return a.startTime.localeCompare(b.startTime);
-  });
-  
-  // Create CSV content
-  const headers = ['Date', 'Day', 'Shop', 'Employee', 'Start', 'End', 'Hours', 'Type'];
-  const rows = exportShifts.map(s => {
-    const dayName = format(parseISO(s.date), 'EEE');
-    return [
-      s.date,
-      dayName,
-      s.shopName,
-      s.employeeName,
-      s.startTime,
-      s.endTime,
-      s.hours.toString(),
-      s.shiftType
-    ];
-  });
-  
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
-  
-  // Download
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `roster_${weekStartStr}_to_${weekEndStr}.csv`;
-  link.click();
-  
-  console.log(`📊 Exported ${exportShifts.length} shifts to CSV`);
-};
-
-// Export to PDF (printable HTML)
-const exportToPDF = () => {
-  const weekStartStr = format(currentWeekStart, 'MMMM d');
-  const weekEndStr = format(addDays(currentWeekStart, 6), 'MMMM d, yyyy');
-  
-  // Filter shifts for current week
-  const weekEnd = addDays(currentWeekStart, 6);
-  const exportShifts = shifts.filter(s => {
-    const d = parseISO(s.date);
-    return d >= currentWeekStart && d <= weekEnd;
-  });
-  
-  // Group by shop
-  const shopGroups: Record<string, BackendShift[]> = {};
-  exportShifts.forEach(s => {
-    if (!shopGroups[s.shopName]) shopGroups[s.shopName] = [];
-    shopGroups[s.shopName].push(s);
-  });
-  
-  // Build HTML
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Roster ${weekStartStr} - ${weekEndStr}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
-        h1 { color: #1e40af; margin-bottom: 5px; }
-        h2 { color: #374151; margin-top: 25px; margin-bottom: 10px; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; }
-        .subtitle { color: #6b7280; margin-bottom: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th { background: #f3f4f6; padding: 10px; text-align: left; border: 1px solid #e5e7eb; }
-        td { padding: 8px 10px; border: 1px solid #e5e7eb; }
-        tr:nth-child(even) { background: #f9fafb; }
-        .shift-am { background: #dcfce7; }
-        .shift-pm { background: #fef9c3; }
-        .shift-full { background: #f3e8ff; }
-        .total-row { font-weight: bold; background: #e5e7eb; }
-        @media print { 
-          body { padding: 0; }
-          h2 { page-break-before: auto; }
-        }
-      </style>
-    </head>
-    <body>
-      <h1>Weekly Roster</h1>
-      <p class="subtitle">${weekStartStr} - ${weekEndStr}</p>
+      if (result.error) {
+        throw new Error(result.error);
+      }
       
-      ${Object.entries(shopGroups).map(([shopName, shopShifts]) => {
-        shopShifts.sort((a, b) => {
-          if (a.date !== b.date) return a.date.localeCompare(b.date);
-          return a.startTime.localeCompare(b.startTime);
+      if (result.status === 'INFEASIBLE') {
+        console.error('❌ No feasible solution found');
+        alert('Could not generate a feasible roster. Check staff availability and requirements.');
+        return;
+      }
+      
+      // Convert solver shifts to app format
+      const generatedShifts: BackendShift[] = result.shifts.map((s: {
+        date: string;
+        shopId: number;
+        shopName: string;
+        employeeId: number;
+        employeeName: string;
+        startTime: string;
+        endTime: string;
+        hours: number;
+        shiftType: string;
+        company: string;
+      }, idx: number) => ({
+        id: `shift-${Date.now()}-${idx}`,
+        date: s.date,
+        shopId: s.shopId,
+        shopName: s.shopName,
+        employeeId: s.employeeId,
+        employeeName: s.employeeName,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        hours: s.hours,
+        shiftType: s.shiftType as 'AM' | 'PM' | 'FULL' | 'CUSTOM',
+        company: s.company
+      }));
+      
+      console.log(`✅ Generated ${generatedShifts.length} shifts`);
+      
+      // Log uncovered demand
+      if (result.uncovered && result.uncovered.length > 0) {
+        console.warn('⚠️ Uncovered demand:', result.uncovered);
+      }
+      
+      // Log employee summary
+      console.log('👥 Employee Summary:');
+      if (result.employee_summary) {
+        Object.entries(result.employee_summary).forEach(([name, data]: [string, unknown]) => {
+          const empData = data as { totalHours: number; target: number; daysWorked: number };
+          console.log(`  ${name}: ${empData.totalHours}h (target: ${empData.target}h) - ${empData.daysWorked} days`);
         });
-        
-        const totalHours = shopShifts.reduce((sum, s) => sum + s.hours, 0);
-        
-        return `
-          <h2>${shopName}</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Date</th>
-                <th>Employee</th>
-                <th>Start</th>
-                <th>End</th>
-                <th>Hours</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${shopShifts.map(s => {
-                const dayName = format(parseISO(s.date), 'EEE');
-                const shiftClass = s.shiftType === 'AM' ? 'shift-am' : 
-                                   s.shiftType === 'PM' ? 'shift-pm' : 
-                                   s.shiftType === 'FULL' ? 'shift-full' : '';
-                return `
-                  <tr class="${shiftClass}">
-                    <td>${dayName}</td>
-                    <td>${s.date}</td>
-                    <td>${s.employeeName}</td>
-                    <td>${s.startTime}</td>
-                    <td>${s.endTime}</td>
-                    <td>${s.hours}h</td>
-                  </tr>
-                `;
-              }).join('')}
-              <tr class="total-row">
-                <td colspan="5">Total Hours</td>
-                <td>${totalHours}h</td>
-              </tr>
-            </tbody>
-          </table>
-        `;
-      }).join('')}
-      
-      <p style="margin-top: 30px; color: #9ca3af; font-size: 12px;">
-        Generated by RosterPro • ${new Date().toLocaleString()}
-      </p>
-    </body>
-    </html>
-  `;
-  
-  // Open in new window for printing
-  const printWindow = window.open('', '_blank');
-  if (printWindow) {
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.print();
-  }
-  
-  console.log(`📄 Exported ${exportShifts.length} shifts to PDF`);
-};
+      }
 
+      // Update state
+      const otherWeekShifts = shifts.filter(s => {
+        const shiftDate = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
+        return !shiftDate.startsWith(weekStartStr.substring(0, 7));
+      });
+      
+      setShifts([...otherWeekShifts, ...generatedShifts]);
+      
+      // Save to backend
+      await saveRosterToBackend(weekStartStr, generatedShifts);
+      
+      console.log('✅ ROSTER GENERATION COMPLETE');
+      
+    } catch (error) {
+      console.error('❌ Generation error:', error);
+      alert(`Roster generation failed: ${error}`);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+
+  // Save roster to backend
+  const saveRosterToBackend = async (weekStart: string, shiftsToSave: BackendShift[]) => {
+    console.log('Attempting to save roster:', weekStart, shiftsToSave.length, 'shifts');
+    try {
+      const response = await fetch(`${API_BASE_URL}/roster/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ weekStart, shifts: shiftsToSave })
+      });
+      if (response.ok) {
+        console.log(`✅ Roster saved for week ${weekStart}`);
+      } else {
+        console.error('Save failed with status:', response.status);
+      }
+    } catch (error) {
+      console.error('Failed to save roster:', error);
+    }
+  };
+
+
+  // Load roster from backend
+  const loadRosterFromBackend = async (weekStart: Date) => {
+    try {
+      const weekKey = format(weekStart, 'yyyy-MM-dd');
+      console.log('📥 Loading roster for week:', weekKey);
+      
+      const response = await fetch(`http://localhost:3001/api/roster/load?weekStart=${weekKey}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📥 Loaded roster data:', data);
+        
+        if (data.shifts && data.shifts.length > 0) {
+          // Convert date strings back to Date objects
+          const loadedShifts = data.shifts.map((s: BackendShift) => ({
+            ...s,
+            date: new Date(s.date)
+          }));
+          
+          setShifts(loadedShifts);
+          console.log(`✅ Loaded ${loadedShifts.length} shifts for week ${weekKey}`);
+        } else {
+          console.log('📭 No shifts found for week', weekKey);
+        }
+      } else if (response.status === 404) {
+        console.log('📭 No roster found for week', weekKey);
+      } else {
+        console.error('Failed to load roster:', response.status);
+      }
+    } catch (error) {
+      console.error('Error loading roster:', error);
+    }
+  };
+
+
+  // Clear roster for specific shops
+  const handleClearRoster = (shopIds: number[]) => {
+    const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
+    const weekEndDate = addDays(currentWeekStart, 6);
+    const weekEndStr = format(weekEndDate, 'yyyy-MM-dd');
+    
+    setShifts(prev => {
+      const updated = prev.filter(shift => {
+        const shiftDateStr = typeof shift.date === 'string' 
+          ? shift.date.substring(0, 10)
+          : format(shift.date, 'yyyy-MM-dd');
+        
+        const inWeek = shiftDateStr >= weekStartStr && shiftDateStr <= weekEndStr;
+        
+        return !(inWeek && shopIds.includes(shift.shopId));
+      });
+      
+      // Auto-save the cleared roster
+      const weekShifts = updated.filter(s => {
+        const d = typeof s.date === 'string' ? s.date.substring(0, 10) : format(s.date, 'yyyy-MM-dd');
+        return d >= weekStartStr && d <= weekEndStr;
+      });
+      saveRosterToBackend(weekStartStr, weekShifts);
+      
+      return updated;
+    });
+  };
+
+
+  // Export to CSV (Excel)
+  const exportToCSV = () => {
+    const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
+    const weekEndStr = format(addDays(currentWeekStart, 6), 'yyyy-MM-dd');
+    
+    // Filter shifts for current week
+    const weekEnd = addDays(currentWeekStart, 6);
+    const exportShifts = shifts.filter(s => {
+      const d = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+      return d >= currentWeekStart && d <= weekEnd;
+    });
+    
+    // Sort by date, then shop, then start time
+    exportShifts.sort((a, b) => {
+      const dateA = typeof a.date === 'string' ? a.date : format(a.date, 'yyyy-MM-dd');
+      const dateB = typeof b.date === 'string' ? b.date : format(b.date, 'yyyy-MM-dd');
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      if (a.shopName !== b.shopName) return a.shopName.localeCompare(b.shopName);
+      return a.startTime.localeCompare(b.startTime);
+    });
+    
+    // Create CSV content
+    const headers = ['Date', 'Day', 'Shop', 'Employee', 'Start', 'End', 'Hours', 'Type'];
+    const rows = exportShifts.map(s => {
+      const dateStr = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
+      const dayName = format(parseISO(dateStr), 'EEE');
+      return [
+        dateStr,
+        dayName,
+        s.shopName,
+        s.employeeName,
+        s.startTime,
+        s.endTime,
+        s.hours.toString(),
+        s.shiftType
+      ];
+    });
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    // Download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `roster_${weekStartStr}_to_${weekEndStr}.csv`;
+    link.click();
+    
+    console.log(`📊 Exported ${exportShifts.length} shifts to CSV`);
+  };
+
+  // Export to PDF (printable HTML)
+  const exportToPDF = () => {
+    const weekStartStr = format(currentWeekStart, 'MMMM d');
+    const weekEndStr = format(addDays(currentWeekStart, 6), 'MMMM d, yyyy');
+    
+    // Filter shifts for current week
+    const weekEnd = addDays(currentWeekStart, 6);
+    const exportShifts = shifts.filter(s => {
+      const d = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+      return d >= currentWeekStart && d <= weekEnd;
+    });
+    
+    // Group by shop
+    const shopGroups: Record<string, BackendShift[]> = {};
+    exportShifts.forEach(s => {
+      if (!shopGroups[s.shopName]) shopGroups[s.shopName] = [];
+      shopGroups[s.shopName].push(s);
+    });
+    
+    // Build HTML
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Roster ${weekStartStr} - ${weekEndStr}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { color: #1e40af; margin-bottom: 5px; }
+          h2 { color: #374151; margin-top: 25px; margin-bottom: 10px; border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; }
+          .subtitle { color: #6b7280; margin-bottom: 20px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th { background: #f3f4f6; padding: 10px; text-align: left; border: 1px solid #e5e7eb; }
+          td { padding: 8px 10px; border: 1px solid #e5e7eb; }
+          tr:nth-child(even) { background: #f9fafb; }
+          .shift-am { background: #dcfce7; }
+          .shift-pm { background: #fef9c3; }
+          .shift-full { background: #f3e8ff; }
+          .total-row { font-weight: bold; background: #e5e7eb; }
+          @media print { 
+            body { padding: 0; }
+            h2 { page-break-before: auto; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>Weekly Roster</h1>
+        <p class="subtitle">${weekStartStr} - ${weekEndStr}</p>
+        
+        ${Object.entries(shopGroups).map(([shopName, shopShifts]) => {
+          shopShifts.sort((a, b) => {
+            const dateA = typeof a.date === 'string' ? a.date : format(a.date, 'yyyy-MM-dd');
+            const dateB = typeof b.date === 'string' ? b.date : format(b.date, 'yyyy-MM-dd');
+            if (dateA !== dateB) return dateA.localeCompare(dateB);
+            return a.startTime.localeCompare(b.startTime);
+          });
+          
+          const totalHours = shopShifts.reduce((sum, s) => sum + s.hours, 0);
+          
+          return `
+            <h2>${shopName}</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Date</th>
+                  <th>Employee</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${shopShifts.map(s => {
+                  const dateStr = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
+                  const dayName = format(parseISO(dateStr), 'EEE');
+                  const shiftClass = s.shiftType === 'AM' ? 'shift-am' : 
+                                     s.shiftType === 'PM' ? 'shift-pm' : 
+                                     s.shiftType === 'FULL' ? 'shift-full' : '';
+                  return `
+                    <tr class="${shiftClass}">
+                      <td>${dayName}</td>
+                      <td>${dateStr}</td>
+                      <td>${s.employeeName}</td>
+                      <td>${s.startTime}</td>
+                      <td>${s.endTime}</td>
+                      <td>${s.hours}h</td>
+                    </tr>
+                  `;
+                }).join('')}
+                <tr class="total-row">
+                  <td colspan="5">Total Hours</td>
+                  <td>${totalHours}h</td>
+                </tr>
+              </tbody>
+            </table>
+          `;
+        }).join('')}
+        
+        <p style="margin-top: 30px; color: #9ca3af; font-size: 12px;">
+          Generated by RosterPro — ${new Date().toLocaleString()}
+        </p>
+      </body>
+      </html>
+    `;
+    
+    // Open in new window for printing
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
+    }
+    
+    console.log(`📄 Exported ${exportShifts.length} shifts to PDF`);
+  };
 
 
   // Handle shift click
   const handleShiftClick = (shift: BackendShift) => {
     setSelectedShift(shift);
-    setSelectedDate(shift.date);
+    setSelectedDate(typeof shift.date === 'string' ? shift.date : format(shift.date, 'yyyy-MM-dd'));
     setSelectedShopId(shift.shopId);
     setShowShiftModal(true);
   };
@@ -1846,132 +1917,127 @@ const exportToPDF = () => {
     setShowShiftModal(true);
   };
 
-// Save shift
-const handleSaveShift = (shiftData: Partial<BackendShift>) => {
-  const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
-  
-  if (selectedShift) {
-    // Edit existing
-    setShifts(prev => {
-      const updated = prev.map(s => 
-        s.id === selectedShift.id ? { ...s, ...shiftData } : s
-      );
-      // Auto-save
-      const weekEnd = addDays(currentWeekStart, 6);
-      const weekShifts = updated.filter(s => {
-        const d = parseISO(s.date);
-        return d >= currentWeekStart && d <= weekEnd;
-      });
-      saveRosterToBackend(weekStartStr, weekShifts);
-      return updated;
-    });
-  } else if (selectedDate && selectedShopId) {
-    // Add new
-    const shop = shops.find(s => s.id === selectedShopId);
-    const employee = employees.find(e => e.id === shiftData.employeeId);
+  // Save shift
+  const handleSaveShift = (shiftData: Partial<BackendShift>) => {
+    const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
     
-    const newShift: BackendShift = {
-      id: `shift-${Date.now()}`,
-      date: selectedDate,
-      shopId: selectedShopId,
-      shopName: shop?.name || 'Unknown',
-      employeeId: shiftData.employeeId || 0,
-      employeeName: employee?.name || 'Unknown',
-      startTime: shiftData.startTime || '09:00',
-      endTime: shiftData.endTime || '17:00',
-      hours: shiftData.hours || 8,
-      shiftType: (shiftData.shiftType || 'CUSTOM') as 'AM' | 'PM' | 'FULL' | 'CUSTOM',
-      company: shop?.company || 'CMZ',
-    };
-    
-    setShifts(prev => {
-      const updated = [...prev, newShift];
-      // Auto-save
-      const weekEnd = addDays(currentWeekStart, 6);
-      const weekShifts = updated.filter(s => {
-        const d = parseISO(s.date);
-        return d >= currentWeekStart && d <= weekEnd;
+    if (selectedShift) {
+      // Edit existing
+      setShifts(prev => {
+        const updated = prev.map(s => 
+          s.id === selectedShift.id ? { ...s, ...shiftData } : s
+        );
+        // Auto-save
+        const weekEnd = addDays(currentWeekStart, 6);
+        const weekShifts = updated.filter(s => {
+          const d = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+          return d >= currentWeekStart && d <= weekEnd;
+        });
+        saveRosterToBackend(weekStartStr, weekShifts);
+        return updated;
       });
-      saveRosterToBackend(weekStartStr, weekShifts);
-      return updated;
-    });
-  }
-  setShowShiftModal(false);
-  setSelectedShift(null);
-};
+    } else if (selectedDate && selectedShopId) {
+      // Add new
+      const shop = shops.find(s => s.id === selectedShopId);
+      const employee = employees.find(e => e.id === shiftData.employeeId);
+      
+      const newShift: BackendShift = {
+        id: `shift-${Date.now()}`,
+        date: selectedDate,
+        shopId: selectedShopId,
+        shopName: shop?.name || 'Unknown',
+        employeeId: shiftData.employeeId || 0,
+        employeeName: employee?.name || 'Unknown',
+        startTime: shiftData.startTime || '09:00',
+        endTime: shiftData.endTime || '17:00',
+        hours: shiftData.hours || 8,
+        shiftType: (shiftData.shiftType || 'CUSTOM') as 'AM' | 'PM' | 'FULL' | 'CUSTOM',
+        company: shop?.company || 'CMZ',
+      };
+      
+      setShifts(prev => {
+        const updated = [...prev, newShift];
+        // Auto-save
+        const weekEnd = addDays(currentWeekStart, 6);
+        const weekShifts = updated.filter(s => {
+          const d = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+          return d >= currentWeekStart && d <= weekEnd;
+        });
+        saveRosterToBackend(weekStartStr, weekShifts);
+        return updated;
+      });
+    }
+    setShowShiftModal(false);
+    setSelectedShift(null);
+  };
 
- // Delete shift
-const handleDeleteShift = (shiftId: string) => {
+  // Delete shift
+  const handleDeleteShift = (shiftId: string | number) => {
   const weekStartStr = format(currentWeekStart, 'yyyy-MM-dd');
   
   setShifts(prev => {
-    const updated = prev.filter(s => s.id !== shiftId);
-    // Auto-save
-    const weekEnd = addDays(currentWeekStart, 6);
-    const weekShifts = updated.filter(s => {
-      const d = parseISO(s.date);
-      return d >= currentWeekStart && d <= weekEnd;
+    const updated = prev.filter(s => s.id !== shiftId && s.id !== String(shiftId));
+      // Auto-save
+      const weekEnd = addDays(currentWeekStart, 6);
+      const weekShifts = updated.filter(s => {
+        const d = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+        return d >= currentWeekStart && d <= weekEnd;
+      });
+      saveRosterToBackend(weekStartStr, weekShifts);
+      return updated;
     });
-    saveRosterToBackend(weekStartStr, weekShifts);
-    return updated;
-  });
-  
-  setShowShiftModal(false);
-  setSelectedShift(null);
-};
+    
+    setShowShiftModal(false);
+    setSelectedShift(null);
+  };
 
-return (
+  return (
     <div className="space-y-6">
-{/* Header */}
-<div className="flex justify-between items-center">
-  <div>
-    <h1 className="text-2xl font-bold text-gray-900">Weekly Roster</h1>
-    <p className="text-gray-600 mt-1">
-      {format(currentWeekStart, 'MMMM d')} - {format(addDays(currentWeekStart, 6), 'MMMM d, yyyy')}
-    </p>
-  </div>
-<div className="flex items-center gap-2">
-    <AnimatedButton variant="ghost" size="sm" onClick={exportToCSV}>
-      📊 Excel
-    </AnimatedButton>
-    <AnimatedButton variant="ghost" size="sm" onClick={exportToPDF}>
-      📄 PDF
-    </AnimatedButton>
-    
-    <AnimatedButton 
-      variant="secondary" 
-      icon={Calendar} 
-      onClick={() => setShowAvailabilityModal(true)}
-    >
-      Part-Timer Availability
-    </AnimatedButton>
-    
-    <AnimatedButton 
-      variant="danger" 
-      icon={Trash2} 
-      onClick={() => {
-        setSelectedShopsForAction([]);
-        setShowClearModal(true);
-      }}
-    >
-      Clear Roster
-    </AnimatedButton>
-    
-    <AnimatedButton 
-      icon={Play} 
-      onClick={() => {
-        setSelectedShopsForAction(filteredShops.map(s => s.id));
-        setShowGenerateModal(true);
-      }}
-    >
-      Generate Roster
-    </AnimatedButton>
-  </div>
-
-    
-
-
-
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Weekly Roster</h1>
+          <p className="text-gray-600 mt-1">
+            {format(currentWeekStart, 'MMMM d')} - {format(addDays(currentWeekStart, 6), 'MMMM d, yyyy')}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <AnimatedButton variant="ghost" size="sm" onClick={exportToCSV}>
+            📊 Excel
+          </AnimatedButton>
+          <AnimatedButton variant="ghost" size="sm" onClick={exportToPDF}>
+            📄 PDF
+          </AnimatedButton>
+          
+          <AnimatedButton 
+            variant="secondary" 
+            icon={Calendar} 
+            onClick={() => setShowAvailabilityModal(true)}
+          >
+            Part-Timer Availability
+          </AnimatedButton>
+          
+          <AnimatedButton 
+            variant="danger" 
+            icon={Trash2} 
+            onClick={() => {
+              setSelectedShopsForAction([]);
+              setShowClearModal(true);
+            }}
+          >
+            Clear Roster
+          </AnimatedButton>
+          
+          <AnimatedButton 
+            icon={Play} 
+            onClick={() => {
+              setSelectedShopsForAction(filteredShops.map(s => s.id));
+              setShowGenerateModal(true);
+            }}
+          >
+            Generate Roster
+          </AnimatedButton>
+        </div>
       </div>
 
       {/* Controls */}
@@ -2067,63 +2133,62 @@ return (
                     }`}
                   >
                     <div className="space-y-1 min-h-[80px]">
-  {dayShifts.map(shift => {
-    // Determine shift type and color
-    const getShiftColor = () => {
-      const type = (shift.shiftType || '').toUpperCase();
-      
-      if (type === 'FULL' || type === 'FULLDAY' || type.includes('FULL')) {
-        return 'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700';
-      }
-      if (type === 'PM' || type === 'EVENING' || type.includes('PM')) {
-        return 'from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700';
-      }
-      if (type === 'AM' || type === 'MORNING' || type.includes('AM')) {
-        return 'from-green-500 to-green-600 hover:from-green-600 hover:to-green-700';
-      }
-      
-      if (shift.hours >= 10) {
-        return 'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700';
-      }
-      
-      const startHour = parseInt(shift.startTime?.split(':')[0] || '0');
-      if (startHour >= 12) {
-        return 'from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700';
-      }
-      
-      return 'from-green-500 to-green-600 hover:from-green-600 hover:to-green-700';
-    };
-    
-    const employee = employees.find(e => e.id === shift.employeeId);
-    const empType = employee?.employmentType === 'full-time' ? 'FT' : 'PT';
-    
-    return (
-      <button
-        key={shift.id}
-        onClick={() => handleShiftClick(shift)}
-        className={`w-full text-left p-1.5 bg-gradient-to-r ${getShiftColor()} text-white rounded text-xs transition-all relative`}
-      >
-        <span className="absolute top-1 right-1 bg-white/20 px-1 rounded text-[10px] font-medium">
-          {shift.hours}h
-        </span>
-        <div className="font-medium truncate pr-8">{shift.employeeName}</div>
-        <div className="flex justify-between items-center mt-0.5">
-          <span className="opacity-80">{shift.startTime}-{shift.endTime}</span>
-          <span className="bg-white/20 px-1 rounded text-[10px] font-medium">{empType}</span>
-        </div>
-      </button>
-    );
-  })}
-  
-  {/* Always show Add button */}
-  <button
-    onClick={() => handleAddShift(dateStr, shop.id)}
-    className="w-full py-1 flex items-center justify-center text-gray-400 hover:text-green-500 hover:bg-green-50 rounded border border-dashed border-gray-300 hover:border-green-400 transition-colors"
-  >
-    <Plus className="w-4 h-4" />
-  </button>
-</div>
-
+                      {dayShifts.map(shift => {
+                        // Determine shift type and color
+                        const getShiftColor = () => {
+                          const type = (shift.shiftType || '').toUpperCase();
+                          
+                          if (type === 'FULL' || type === 'FULLDAY' || type.includes('FULL')) {
+                            return 'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700';
+                          }
+                          if (type === 'PM' || type === 'EVENING' || type.includes('PM')) {
+                            return 'from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700';
+                          }
+                          if (type === 'AM' || type === 'MORNING' || type.includes('AM')) {
+                            return 'from-green-500 to-green-600 hover:from-green-600 hover:to-green-700';
+                          }
+                          
+                          if (shift.hours >= 10) {
+                            return 'from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700';
+                          }
+                          
+                          const startHour = parseInt(shift.startTime?.split(':')[0] || '0');
+                          if (startHour >= 12) {
+                            return 'from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700';
+                          }
+                          
+                          return 'from-green-500 to-green-600 hover:from-green-600 hover:to-green-700';
+                        };
+                        
+                        const employee = employees.find(e => e.id === shift.employeeId);
+                        const empType = employee?.employmentType === 'full-time' ? 'FT' : 'PT';
+                        
+                        return (
+                          <button
+                            key={shift.id}
+                            onClick={() => handleShiftClick(shift)}
+                            className={`w-full text-left p-1.5 bg-gradient-to-r ${getShiftColor()} text-white rounded text-xs transition-all relative`}
+                          >
+                            <span className="absolute top-1 right-1 bg-white/20 px-1 rounded text-[10px] font-medium">
+                              {shift.hours}h
+                            </span>
+                            <div className="font-medium truncate pr-8">{shift.employeeName}</div>
+                            <div className="flex justify-between items-center mt-0.5">
+                              <span className="opacity-80">{shift.startTime}-{shift.endTime}</span>
+                              <span className="bg-white/20 px-1 rounded text-[10px] font-medium">{empType}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                      
+                      {/* Always show Add button */}
+                      <button
+                        onClick={() => handleAddShift(dateStr, shop.id)}
+                        className="w-full py-1 flex items-center justify-center text-gray-400 hover:text-green-500 hover:bg-green-50 rounded border border-dashed border-gray-300 hover:border-green-400 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -2145,212 +2210,213 @@ return (
         shop={shops.find(s => s.id === selectedShopId)}
         date={selectedDate}
         onSave={handleSaveShift}
-        onDelete={selectedShift ? () => handleDeleteShift(selectedShift.id) : undefined}
+        onDelete={selectedShift ? () => handleDeleteShift(String(selectedShift.id)) : undefined}
       />
+      
       {/* Part-Timer Availability Modal */}
-<AvailabilityModal
-  isOpen={showAvailabilityModal}
-  onClose={() => setShowAvailabilityModal(false)}
-  employees={employees}
-  shops={shops}
-  weekStart={currentWeekStart}
-  availability={partTimerAvailability}
-  onSave={(availability) => {
-    setPartTimerAvailability(availability);
-  }}
-/>
-{/* Generate Roster Modal */}
-<Modal
-  isOpen={showGenerateModal}
-  onClose={() => setShowGenerateModal(false)}
-  title="Generate Roster"
-  size="md"
->
-  <div className="space-y-4">
-    <p className="text-gray-600 text-sm">Select which shops to generate roster for:</p>
-    
-    {/* Quick Select Buttons */}
-    <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={() => setSelectedShopsForAction(filteredShops.map(s => s.id))}
-        className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-      >
-        Select All
-      </button>
-      <button
-        type="button"
-        onClick={() => setSelectedShopsForAction([])}
-        className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-      >
-        Clear All
-      </button>
-      <button
-        type="button"
-        onClick={() => setSelectedShopsForAction(
-          shops.filter(s => s.isActive && s.company === 'CMZ').map(s => s.id)
-        )}
-        className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
-      >
-        CMZ Only
-      </button>
-      <button
-        type="button"
-        onClick={() => setSelectedShopsForAction(
-          shops.filter(s => s.isActive && s.company === 'CS').map(s => s.id)
-        )}
-        className="px-3 py-1 text-sm bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
-      >
-        CS Only
-      </button>
-    </div>
-    
-    {/* Shop Checkboxes */}
-    <div className="max-h-64 overflow-y-auto border rounded-lg divide-y">
-      {filteredShops.map(shop => (
-        <label
-          key={shop.id}
-          className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer"
-        >
-          <input
-            type="checkbox"
-            checked={selectedShopsForAction.includes(shop.id)}
-            onChange={(e) => {
-              if (e.target.checked) {
-                setSelectedShopsForAction(prev => [...prev, shop.id]);
-              } else {
-                setSelectedShopsForAction(prev => prev.filter(id => id !== shop.id));
-              }
-            }}
-            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-          />
-          <span className="flex-1 font-medium">{shop.name}</span>
-          <Badge variant={shop.company === 'CMZ' ? 'purple' : 'warning'}>{shop.company}</Badge>
-        </label>
-      ))}
-    </div>
-    
-    <div className="text-sm text-gray-500">
-      {selectedShopsForAction.length} shop(s) selected
-    </div>
-    
-    {/* Actions */}
-    <div className="flex justify-end gap-3 pt-4 border-t">
-      <AnimatedButton variant="secondary" onClick={() => setShowGenerateModal(false)}>
-        Cancel
-      </AnimatedButton>
-<AnimatedButton
-  icon={Play}
-  onClick={async () => {
-    // Clear selected shops first
-    handleClearRoster(selectedShopsForAction);
-    
-    // Small delay to ensure state updates
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-// Generate for ALL shops at once (proper hour tracking)
-await handleGenerateRoster();
-
-    setShowGenerateModal(false);
-    setSelectedShopsForAction([]);
-  }}
-  disabled={selectedShopsForAction.length === 0 || isGenerating}
-  loading={isGenerating}
->
-  Generate {selectedShopsForAction.length} Shop(s)
-</AnimatedButton>
-    </div>
-  </div>
-</Modal>
-
-{/* Clear Roster Modal */}
-<Modal
-  isOpen={showClearModal}
-  onClose={() => setShowClearModal(false)}
-  title="Clear Roster"
-  size="md"
->
-  <div className="space-y-4">
-    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-      <p className="text-red-700 text-sm">
-        ⚠️ This will remove all shifts for the selected shops for the current week. This action cannot be undone.
-      </p>
-    </div>
-    
-    <p className="text-gray-600 text-sm">Select which shops to clear:</p>
-    
-    {/* Quick Select Buttons */}
-    <div className="flex gap-2">
-      <button
-        type="button"
-        onClick={() => setSelectedShopsForAction(filteredShops.map(s => s.id))}
-        className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
-      >
-        Select All
-      </button>
-      <button
-        type="button"
-        onClick={() => setSelectedShopsForAction([])}
-        className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-      >
-        Clear Selection
-      </button>
-    </div>
-    
-    {/* Shop Checkboxes */}
-    <div className="max-h-64 overflow-y-auto border rounded-lg divide-y">
-      {filteredShops.map(shop => {
-        const shopShiftCount = weekShifts.filter(s => s.shopId === shop.id).length;
-        return (
-          <label
-            key={shop.id}
-            className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer"
-          >
-            <input
-              type="checkbox"
-              checked={selectedShopsForAction.includes(shop.id)}
-              onChange={(e) => {
-                if (e.target.checked) {
-                  setSelectedShopsForAction(prev => [...prev, shop.id]);
-                } else {
-                  setSelectedShopsForAction(prev => prev.filter(id => id !== shop.id));
-                }
-              }}
-              className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
-            />
-            <span className="flex-1 font-medium">{shop.name}</span>
-            <span className="text-sm text-gray-500">{shopShiftCount} shifts</span>
-            <Badge variant={shop.company === 'CMZ' ? 'purple' : 'warning'}>{shop.company}</Badge>
-          </label>
-        );
-      })}
-    </div>
-    
-    <div className="text-sm text-gray-500">
-      {selectedShopsForAction.length} shop(s) selected
-    </div>
-    
-    {/* Actions */}
-    <div className="flex justify-end gap-3 pt-4 border-t">
-      <AnimatedButton variant="secondary" onClick={() => setShowClearModal(false)}>
-        Cancel
-      </AnimatedButton>
-      <AnimatedButton
-        variant="danger"
-        icon={Trash2}
-        onClick={() => {
-          handleClearRoster(selectedShopsForAction);
-          setShowClearModal(false);
-          setSelectedShopsForAction([]);
+      <AvailabilityModal
+        isOpen={showAvailabilityModal}
+        onClose={() => setShowAvailabilityModal(false)}
+        employees={employees}
+        shops={shops}
+        weekStart={currentWeekStart}
+        availability={partTimerAvailability}
+        onSave={(availability) => {
+          setPartTimerAvailability(availability);
         }}
-        disabled={selectedShopsForAction.length === 0}
+      />
+      
+      {/* Generate Roster Modal */}
+      <Modal
+        isOpen={showGenerateModal}
+        onClose={() => setShowGenerateModal(false)}
+        title="Generate Roster"
+        size="md"
       >
-        Clear {selectedShopsForAction.length} Shop(s)
-      </AnimatedButton>
-    </div>
-  </div>
-</Modal>
+        <div className="space-y-4">
+          <p className="text-gray-600 text-sm">Select which shops to generate roster for:</p>
+          
+          {/* Quick Select Buttons */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedShopsForAction(filteredShops.map(s => s.id))}
+              className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedShopsForAction([])}
+              className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            >
+              Clear All
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedShopsForAction(
+                shops.filter(s => s.isActive && s.company === 'CMZ').map(s => s.id)
+              )}
+              className="px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+            >
+              CMZ Only
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedShopsForAction(
+                shops.filter(s => s.isActive && s.company === 'CS').map(s => s.id)
+              )}
+              className="px-3 py-1 text-sm bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
+            >
+              CS Only
+            </button>
+          </div>
+          
+          {/* Shop Checkboxes */}
+          <div className="max-h-64 overflow-y-auto border rounded-lg divide-y">
+            {filteredShops.map(shop => (
+              <label
+                key={shop.id}
+                className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedShopsForAction.includes(shop.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedShopsForAction(prev => [...prev, shop.id]);
+                    } else {
+                      setSelectedShopsForAction(prev => prev.filter(id => id !== shop.id));
+                    }
+                  }}
+                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                />
+                <span className="flex-1 font-medium">{shop.name}</span>
+                <Badge variant={shop.company === 'CMZ' ? 'purple' : 'warning'}>{shop.company}</Badge>
+              </label>
+            ))}
+          </div>
+          
+          <div className="text-sm text-gray-500">
+            {selectedShopsForAction.length} shop(s) selected
+          </div>
+          
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <AnimatedButton variant="secondary" onClick={() => setShowGenerateModal(false)}>
+              Cancel
+            </AnimatedButton>
+            <AnimatedButton
+              icon={Play}
+              onClick={async () => {
+                // Clear selected shops first
+                handleClearRoster(selectedShopsForAction);
+                
+                // Small delay to ensure state updates
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                // Generate for ALL shops at once (proper hour tracking)
+                await handleGenerateRoster();
 
+                setShowGenerateModal(false);
+                setSelectedShopsForAction([]);
+              }}
+              disabled={selectedShopsForAction.length === 0 || isGenerating}
+              loading={isGenerating}
+            >
+              Generate {selectedShopsForAction.length} Shop(s)
+            </AnimatedButton>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Clear Roster Modal */}
+      <Modal
+        isOpen={showClearModal}
+        onClose={() => setShowClearModal(false)}
+        title="Clear Roster"
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 text-sm">
+              ⚠️ This will remove all shifts for the selected shops for the current week. This action cannot be undone.
+            </p>
+          </div>
+          
+          <p className="text-gray-600 text-sm">Select which shops to clear:</p>
+          
+          {/* Quick Select Buttons */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedShopsForAction(filteredShops.map(s => s.id))}
+              className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+            >
+              Select All
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedShopsForAction([])}
+              className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+            >
+              Clear Selection
+            </button>
+          </div>
+          
+          {/* Shop Checkboxes */}
+          <div className="max-h-64 overflow-y-auto border rounded-lg divide-y">
+            {filteredShops.map(shop => {
+              const shopShiftCount = weekShifts.filter(s => s.shopId === shop.id).length;
+              return (
+                <label
+                  key={shop.id}
+                  className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedShopsForAction.includes(shop.id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedShopsForAction(prev => [...prev, shop.id]);
+                      } else {
+                        setSelectedShopsForAction(prev => prev.filter(id => id !== shop.id));
+                      }
+                    }}
+                    className="w-4 h-4 text-red-600 rounded focus:ring-red-500"
+                  />
+                  <span className="flex-1 font-medium">{shop.name}</span>
+                  <span className="text-sm text-gray-500">{shopShiftCount} shifts</span>
+                  <Badge variant={shop.company === 'CMZ' ? 'purple' : 'warning'}>{shop.company}</Badge>
+                </label>
+              );
+            })}
+          </div>
+          
+          <div className="text-sm text-gray-500">
+            {selectedShopsForAction.length} shop(s) selected
+          </div>
+          
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <AnimatedButton variant="secondary" onClick={() => setShowClearModal(false)}>
+              Cancel
+            </AnimatedButton>
+            <AnimatedButton
+              variant="danger"
+              icon={Trash2}
+              onClick={() => {
+                handleClearRoster(selectedShopsForAction);
+                setShowClearModal(false);
+                setSelectedShopsForAction([]);
+              }}
+              disabled={selectedShopsForAction.length === 0}
+            >
+              Clear {selectedShopsForAction.length} Shop(s)
+            </AnimatedButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -2453,10 +2519,10 @@ function ShiftModal({ isOpen, onClose, shift, employees, shop, date, onSave, onD
             <div>
               <span className="text-gray-500">Date:</span>
               <p className="font-medium">
-  {date 
-    ? format(typeof date === 'string' ? parseISO(date) : date, 'EEE, MMM d, yyyy') 
-    : 'Unknown'}
-</p>
+                {date 
+                  ? format(typeof date === 'string' ? parseISO(date) : date, 'EEE, MMM d, yyyy') 
+                  : 'Unknown'}
+              </p>
             </div>
           </div>
         </div>
@@ -2653,48 +2719,48 @@ function OvertimeView({ employees, shifts }: OvertimeViewProps) {
       </div>
 
       {/* Filters */}
-<GlassCard className="p-4">
-  <div className="flex flex-wrap gap-4 items-center">
-    <ToggleButtonGroup
-      value={dateRange}
-      onChange={setDateRange}
-      options={[
-        { value: 'week', label: 'This Week' },
-        { value: 'month', label: 'This Month' },
-        { value: 'custom', label: 'Custom' },
-      ]}
-    />
-    {dateRange === 'custom' && (
-      <div className="flex items-center gap-2">
-        <input
-          type="date"
-          value={customStartDate}
-          onChange={(e) => setCustomStartDate(e.target.value)}
-          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-        />
-        <span className="text-gray-500">to</span>
-        <input
-          type="date"
-          value={customEndDate}
-          onChange={(e) => setCustomEndDate(e.target.value)}
-          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-        />
-      </div>
-    )}
-    <ToggleButtonGroup
-      value={companyFilter}
-      onChange={setCompanyFilter}
-      options={[
-        { value: 'all', label: 'All Companies' },
-        { value: 'CMZ', label: 'CMZ' },
-        { value: 'CS', label: 'CS' },
-      ]}
-    />
-    <div className="ml-auto text-sm text-gray-600">
-      {dateRangeBounds.label}
-    </div>
-  </div>
-</GlassCard>
+      <GlassCard className="p-4">
+        <div className="flex flex-wrap gap-4 items-center">
+          <ToggleButtonGroup
+            value={dateRange}
+            onChange={setDateRange}
+            options={[
+              { value: 'week', label: 'This Week' },
+              { value: 'month', label: 'This Month' },
+              { value: 'custom', label: 'Custom' },
+            ]}
+          />
+          {dateRange === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              />
+              <span className="text-gray-500">to</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+              />
+            </div>
+          )}
+          <ToggleButtonGroup
+            value={companyFilter}
+            onChange={setCompanyFilter}
+            options={[
+              { value: 'all', label: 'All Companies' },
+              { value: 'CMZ', label: 'CMZ' },
+              { value: 'CS', label: 'CS' },
+            ]}
+          />
+          <div className="ml-auto text-sm text-gray-600">
+            {dateRangeBounds.label}
+          </div>
+        </div>
+      </GlassCard>
 
 
       {/* Employee Overtime Table */}
@@ -2794,9 +2860,9 @@ function PayScalesView() {
     setEditingPayScale(scale);
     setPayScaleForm({
       name: scale.name,
-      grade: scale.grade,
+      grade: scale.grade || 'Entry',
       hourlyRate: scale.hourlyRate,
-      overtimeMultiplier: scale.overtimeMultiplier
+      overtimeMultiplier: scale.overtimeMultiplier || 1.5
     });
     setShowPayScaleModal(true);
   };
@@ -2805,18 +2871,32 @@ function PayScalesView() {
   const handleSavePayScale = () => {
     if (!payScaleForm.name.trim()) return;
 
+    const hourlyRate = payScaleForm.hourlyRate || 8.50;
+    const overtimeMultiplier = payScaleForm.overtimeMultiplier || 1.5;
+
     if (editingPayScale) {
       // Update existing
       setPayScales(prev => prev.map(s => 
         s.id === editingPayScale.id 
-          ? { ...s, ...payScaleForm }
+          ? { 
+              ...s, 
+              name: payScaleForm.name,
+              grade: payScaleForm.grade,
+              hourlyRate: hourlyRate,
+              overtimeMultiplier: overtimeMultiplier,
+              overtimeRate: hourlyRate * overtimeMultiplier
+            }
           : s
       ));
     } else {
       // Add new
       const newScale: PayScale = {
         id: `scale-${Date.now()}`,
-        ...payScaleForm
+        name: payScaleForm.name,
+        grade: payScaleForm.grade || 'Entry',
+        hourlyRate: hourlyRate,
+        overtimeMultiplier: overtimeMultiplier,
+        overtimeRate: hourlyRate * overtimeMultiplier
       };
       setPayScales(prev => [...prev, newScale]);
     }
@@ -2853,36 +2933,36 @@ function PayScalesView() {
     setShowAllowanceModal(true);
   };
 
-// Save Allowance
-const handleSaveAllowance = () => {
-  if (!allowanceForm.name.trim()) return;
+  // Save Allowance
+  const handleSaveAllowance = () => {
+    if (!allowanceForm.name.trim()) return;
 
-  if (editingAllowance) {
-    // Update existing
-    setAllowances(prev => prev.map(a => 
-      a.id === editingAllowance.id 
-        ? { 
-            id: a.id,
-            name: allowanceForm.name,
-            type: allowanceForm.type,
-            value: allowanceForm.value,
-            description: allowanceForm.description || ''
-          }
-        : a
-    ));
-  } else {
-    // Add new
-    const newAllowance: Allowance = {
-      id: `allowance-${Date.now()}`,
-      name: allowanceForm.name,
-      type: allowanceForm.type,
-      value: allowanceForm.value,
-      description: allowanceForm.description || ''
-    };
-    setAllowances(prev => [...prev, newAllowance]);
-  }
-  setShowAllowanceModal(false);
-};
+    if (editingAllowance) {
+      // Update existing
+      setAllowances(prev => prev.map(a => 
+        a.id === editingAllowance.id 
+          ? { 
+              id: a.id,
+              name: allowanceForm.name,
+              type: allowanceForm.type,
+              value: allowanceForm.value,
+              description: allowanceForm.description || ''
+            }
+          : a
+      ));
+    } else {
+      // Add new
+      const newAllowance: Allowance = {
+        id: `allowance-${Date.now()}`,
+        name: allowanceForm.name,
+        type: allowanceForm.type,
+        value: allowanceForm.value,
+        description: allowanceForm.description || ''
+      };
+      setAllowances(prev => [...prev, newAllowance]);
+    }
+    setShowAllowanceModal(false);
+  };
 
   // Delete Allowance
   const handleDeleteAllowance = (id: string) => {
@@ -2920,11 +3000,11 @@ const handleSaveAllowance = () => {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">OT Multiplier:</span>
-                  <span className="font-medium">{scale.overtimeMultiplier}x</span>
+                  <span className="font-medium">{scale.overtimeMultiplier || 1.5}x</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">OT Rate:</span>
-                  <span className="font-medium text-orange-600">€{(scale.hourlyRate * scale.overtimeMultiplier).toFixed(2)}</span>
+                  <span className="font-medium text-orange-600">€{(scale.hourlyRate * (scale.overtimeMultiplier || 1.5)).toFixed(2)}</span>
                 </div>
               </div>
               <div className="flex gap-2 mt-3 pt-3 border-t border-gray-200">
@@ -3022,7 +3102,7 @@ const handleSaveAllowance = () => {
           />
           <div className="p-3 bg-orange-50 rounded-lg">
             <p className="text-sm text-orange-700">
-              <strong>Overtime Rate:</strong> €{(payScaleForm.hourlyRate * payScaleForm.overtimeMultiplier).toFixed(2)}/hour
+              <strong>Overtime Rate:</strong> €{((payScaleForm.hourlyRate || 0) * (payScaleForm.overtimeMultiplier || 1.5)).toFixed(2)}
             </p>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
@@ -3269,6 +3349,7 @@ function EmployeePortalView({
     endDate: format(new Date(), 'yyyy-MM-dd'),
     reason: ''
   });
+  
   // Details editing state
   const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [detailsUpdateSuccess, setDetailsUpdateSuccess] = useState(false);
@@ -3298,11 +3379,15 @@ function EmployeePortalView({
   const myShifts = useMemo(() => {
     const weekEnd = addDays(currentWeekStart, 6);
     return shifts.filter(shift => {
-      const shiftDate = parseISO(shift.date);
+      const shiftDate = typeof shift.date === 'string' ? parseISO(shift.date) : shift.date;
       return shift.employeeId === employee.id && 
              shiftDate >= currentWeekStart && 
              shiftDate <= weekEnd;
-    }).sort((a, b) => a.date.localeCompare(b.date));
+    }).sort((a, b) => {
+      const dateA = typeof a.date === 'string' ? a.date : format(a.date, 'yyyy-MM-dd');
+      const dateB = typeof b.date === 'string' ? b.date : format(b.date, 'yyyy-MM-dd');
+      return dateA.localeCompare(dateB);
+    });
   }, [shifts, employee.id, currentWeekStart]);
 
   // Calculate weekly hours
@@ -3313,7 +3398,7 @@ function EmployeePortalView({
   // Get my leave requests
   const myLeaveRequests = useMemo(() => {
     return leaveRequests.filter(r => r.employeeId === employee.id)
-      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+      .sort((a, b) => (b.submittedAt || '').localeCompare(a.submittedAt || ''));
   }, [leaveRequests, employee.id]);
 
   // Get my swap requests
@@ -3324,30 +3409,30 @@ function EmployeePortalView({
   }, [swapRequests, employee.id]);
 
   // Calculate Saturday leave count for current year
-const saturdayLeaveCount = useMemo(() => {
-  const currentYear = new Date().getFullYear();
-  let totalSaturdays = 0;
-  
-  leaveRequests.forEach(request => {
-    if (request.employeeId !== employee.id) return;
-    if (request.status !== 'approved') return;
+  const saturdayLeaveCount = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    let totalSaturdays = 0;
     
-    // Check each day in the leave range for Saturdays
-    const start = parseISO(request.startDate);
-    const end = parseISO(request.endDate);
-    
-    let current = new Date(start);
-    while (current <= end) {
-      // 6 = Saturday
-      if (current.getDay() === 6 && current.getFullYear() === currentYear) {
-        totalSaturdays++;
+    leaveRequests.forEach(request => {
+      if (request.employeeId !== employee.id) return;
+      if (request.status !== 'approved') return;
+      
+      // Check each day in the leave range for Saturdays
+      const start = parseISO(request.startDate);
+      const end = parseISO(request.endDate);
+      
+      let current = new Date(start);
+      while (current <= end) {
+        // 6 = Saturday
+        if (current.getDay() === 6 && current.getFullYear() === currentYear) {
+          totalSaturdays++;
+        }
+        current.setDate(current.getDate() + 1);
       }
-      current.setDate(current.getDate() + 1);
-    }
-  });
-  
-  return totalSaturdays;
-}, [leaveRequests, employee.id]);
+    });
+    
+    return totalSaturdays;
+  }, [leaveRequests, employee.id]);
 
 
   // Navigation
@@ -3402,7 +3487,8 @@ const saturdayLeaveCount = useMemo(() => {
     if (type.includes('PM') || parseInt(shift.startTime?.split(':')[0] || '0') >= 12) return 'from-yellow-500 to-yellow-600';
     return 'from-green-500 to-green-600';
   };
-   // Handle save details
+  
+  // Handle save details
   const handleSaveDetails = async () => {
     // Create notification for admins/managers
     const notification: ProfileUpdateNotification = {
@@ -3414,31 +3500,33 @@ const saturdayLeaveCount = useMemo(() => {
       status: 'pending'
     };
 
-    // Track what changed
+    // Track what changed - changes is initialized above so we can use it directly
+    const changes = notification.changes!;
+    
     if (detailsForm.phone !== (employee.phone || '')) {
-      notification.changes.phone = { old: employee.phone || '', new: detailsForm.phone };
+      changes.phone = { old: employee.phone || '', new: detailsForm.phone };
     }
     if (detailsForm.idNumber !== (employee.idNumber || '')) {
-      notification.changes.idNumber = { old: employee.idNumber || '', new: detailsForm.idNumber };
+      changes.idNumber = { old: employee.idNumber || '', new: detailsForm.idNumber };
     }
     if (detailsForm.taxNumber !== (employee.taxNumber || '')) {
-      notification.changes.taxNumber = { old: employee.taxNumber || '', new: detailsForm.taxNumber };
+      changes.taxNumber = { old: employee.taxNumber || '', new: detailsForm.taxNumber };
     }
     if (detailsForm.ssnNumber !== (employee.ssnNumber || '')) {
-      notification.changes.ssnNumber = { old: employee.ssnNumber || '', new: detailsForm.ssnNumber };
+      changes.ssnNumber = { old: employee.ssnNumber || '', new: detailsForm.ssnNumber };
     }
     if (detailsForm.tcnNumber !== (employee.tcnNumber || '')) {
-      notification.changes.tcnNumber = { old: employee.tcnNumber || '', new: detailsForm.tcnNumber };
+      changes.tcnNumber = { old: employee.tcnNumber || '', new: detailsForm.tcnNumber };
     }
     if (detailsForm.tcnExpiry !== (employee.tcnExpiry || '')) {
-      notification.changes.tcnExpiry = { old: employee.tcnExpiry || '', new: detailsForm.tcnExpiry };
+      changes.tcnExpiry = { old: employee.tcnExpiry || '', new: detailsForm.tcnExpiry };
     }
     if (detailsForm.iban !== (employee.iban || '')) {
-      notification.changes.iban = { old: employee.iban || '', new: detailsForm.iban };
+      changes.iban = { old: employee.iban || '', new: detailsForm.iban };
     }
 
     // Only send notification if something changed
-    if (Object.keys(notification.changes).length > 0) {
+    if (Object.keys(changes).length > 0) {
       onProfileUpdate(notification);
       
       // Update employee data
@@ -3454,7 +3542,7 @@ const saturdayLeaveCount = useMemo(() => {
       };
       onEmployeeUpdate(updatedEmployee);
       
-      console.log('📬 Profile update notification sent:', notification);
+      console.log('📧 Profile update notification sent:', notification);
     }
     
     setIsEditingDetails(false);
@@ -3537,7 +3625,10 @@ const saturdayLeaveCount = useMemo(() => {
           {/* Weekly Roster Grid */}
           <div className="grid grid-cols-7 gap-2">
             {weekDates.map(({ day, date, dateStr }) => {
-              const dayShift = myShifts.find(s => s.date === dateStr);
+              const dayShift = myShifts.find(s => {
+                const shiftDateStr = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
+                return shiftDateStr === dateStr;
+              });
               const isCurrentDay = isToday(date);
               
               return (
@@ -3657,7 +3748,7 @@ const saturdayLeaveCount = useMemo(() => {
                       )}
                     </div>
                     <p className="text-xs text-gray-500">
-                      Submitted {format(parseISO(request.submittedAt), 'MMM d, yyyy')}
+                      Submitted {format(parseISO(request.submittedAt || new Date().toISOString()), 'MMM d, yyyy')}
                     </p>
                   </div>
                 </GlassCard>
@@ -3716,37 +3807,37 @@ const saturdayLeaveCount = useMemo(() => {
       )}
 
       {activeTab === 'hours' && (
-  <div className="space-y-4">
-    <h2 className="text-lg font-semibold">Hours Summary</h2>
-    
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      <StatCard
-        icon={Clock}
-        label="This Week"
-        value={`${weeklyHours}h`}
-        subtext={`Target: ${employee.weeklyHours}h`}
-        gradient="from-blue-500 to-blue-600"
-      />
-      <StatCard
-        icon={Calendar}
-        label="Shifts This Week"
-        value={myShifts.length}
-        gradient="from-green-500 to-emerald-500"
-      />
-      <StatCard
-        icon={Clock}
-        label="Avg Hours/Shift"
-        value={myShifts.length > 0 ? (weeklyHours / myShifts.length).toFixed(1) + 'h' : '0h'}
-        gradient="from-purple-500 to-purple-600"
-      />
-      <StatCard
-        icon={Calendar}
-        label="Saturday Leave"
-        value={`${saturdayLeaveCount}/4`}
-        subtext="Used this year"
-        gradient={saturdayLeaveCount >= 4 ? "from-red-500 to-red-600" : "from-orange-500 to-orange-600"}
-      />
-    </div>
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Hours Summary</h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <StatCard
+              icon={Clock}
+              label="This Week"
+              value={`${weeklyHours}h`}
+              subtext={`Target: ${employee.weeklyHours}h`}
+              gradient="from-blue-500 to-blue-600"
+            />
+            <StatCard
+              icon={Calendar}
+              label="Shifts This Week"
+              value={myShifts.length}
+              gradient="from-green-500 to-emerald-500"
+            />
+            <StatCard
+              icon={Clock}
+              label="Avg Hours/Shift"
+              value={myShifts.length > 0 ? (weeklyHours / myShifts.length).toFixed(1) + 'h' : '0h'}
+              gradient="from-purple-500 to-purple-600"
+            />
+            <StatCard
+              icon={Calendar}
+              label="Saturday Leave"
+              value={`${saturdayLeaveCount}/4`}
+              subtext="Used this year"
+              gradient={saturdayLeaveCount >= 4 ? "from-red-500 to-red-600" : "from-orange-500 to-orange-600"}
+            />
+          </div>
 
 
           <GlassCard className="p-4">
@@ -3772,15 +3863,14 @@ const saturdayLeaveCount = useMemo(() => {
         </div>
       )}
 
-{activeTab === 'details' && (
+      {activeTab === 'details' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-lg font-semibold">My Details</h2>
             {!isEditingDetails ? (
-<AnimatedButton icon={Edit2} onClick={() => setIsEditingDetails(true)} className="bg-red-500 hover:bg-red-600 text-white">
-  ✏️ Edit Details
-</AnimatedButton>
-
+              <AnimatedButton icon={Edit2} onClick={() => setIsEditingDetails(true)} className="bg-red-500 hover:bg-red-600 text-white">
+                ✏️ Edit Details
+              </AnimatedButton>
             ) : (
               <div className="flex gap-2">
                 <AnimatedButton variant="secondary" onClick={() => {
@@ -3896,7 +3986,7 @@ const saturdayLeaveCount = useMemo(() => {
                 </div>
               ) : (
                 <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-4">
-                  <p className="text-sm text-yellow-700">⚠️ Click "Edit Details" to update your personal information.</p>
+                  <p className="text-sm text-yellow-700">💡 Click "Edit Details" to update your personal information.</p>
                 </div>
               )}
               
@@ -3932,15 +4022,15 @@ const saturdayLeaveCount = useMemo(() => {
                   <>
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-500">ID Number</p>
-                      <p className="font-medium">{employee.idNumber || '••••••••'}</p>
+                      <p className="font-medium">{employee.idNumber || '—'}</p>
                     </div>
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-500">Tax Number</p>
-                      <p className="font-medium">{employee.taxNumber || '••••••••'}</p>
+                      <p className="font-medium">{employee.taxNumber || '—'}</p>
                     </div>
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-500">Social Security Number</p>
-                      <p className="font-medium">{employee.ssnNumber || '••••••••'}</p>
+                      <p className="font-medium">{employee.ssnNumber || '—'}</p>
                     </div>
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-500">TCN Number</p>
@@ -3952,7 +4042,7 @@ const saturdayLeaveCount = useMemo(() => {
                     </div>
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-500">IBAN</p>
-                      <p className="font-medium">{employee.iban || '••••••••'}</p>
+                      <p className="font-medium">{employee.iban || '—'}</p>
                     </div>
                   </>
                 )}
@@ -4030,7 +4120,7 @@ const saturdayLeaveCount = useMemo(() => {
             <div className="p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-600">Your shift to swap:</p>
               <p className="font-bold text-blue-800">
-                {format(parseISO(selectedShiftForSwap.date), 'EEEE, MMMM d')}
+                {format(typeof selectedShiftForSwap.date === 'string' ? parseISO(selectedShiftForSwap.date) : selectedShiftForSwap.date, 'EEEE, MMMM d')}
               </p>
               <p className="text-blue-700">
                 {selectedShiftForSwap.startTime} - {selectedShiftForSwap.endTime} at {selectedShiftForSwap.shopName}
@@ -4044,15 +4134,19 @@ const saturdayLeaveCount = useMemo(() => {
                   .filter(e => e.id !== employee.id && !e.excludeFromRoster && 
                     (e.company === employee.company || e.company === 'Both'))
                   .map(colleague => {
-                    const colleagueShift = shifts.find(s => 
-                      s.employeeId === colleague.id && 
-                      s.date === selectedShiftForSwap.date
-                    );
+                    const selectedShiftDate = typeof selectedShiftForSwap.date === 'string' 
+                      ? selectedShiftForSwap.date 
+                      : format(selectedShiftForSwap.date, 'yyyy-MM-dd');
+                    
+                    const colleagueShift = shifts.find(s => {
+                      const shiftDate = typeof s.date === 'string' ? s.date : format(s.date, 'yyyy-MM-dd');
+                      return s.employeeId === colleague.id && shiftDate === selectedShiftDate;
+                    });
                     
                     return (
                       <button
                         key={colleague.id}
-                        onClick={() => handleRequestSwap(colleague.id, colleagueShift?.id || '')}
+                        onClick={() => handleRequestSwap(colleague.id, colleagueShift?.id?.toString() || '')}
                         className="w-full flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors text-left"
                       >
                         <div className="flex items-center gap-3">
@@ -4094,33 +4188,32 @@ const saturdayLeaveCount = useMemo(() => {
 export default function App() {
 
   const syncToDatabase = async () => {
-    
-  try {
-    // Save all shops
-    for (const shop of shops) {
-      await fetch(`${API_BASE_URL}/shops`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(shop)
-      });
+    try {
+      // Save all shops
+      for (const shop of shops) {
+        await fetch(`${API_BASE_URL}/shops`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(shop)
+        });
+      }
+      
+      // Save all employees
+      for (const employee of employees) {
+        await fetch(`${API_BASE_URL}/employees`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(employee)
+        });
+      }
+      
+      console.log('✅ Synced to database:', shops.length, 'shops,', employees.length, 'employees');
+      alert('Data synced to database successfully!');
+    } catch (error) {
+      console.error('Sync failed:', error);
+      alert('Sync failed - check console');
     }
-    
-    // Save all employees
-    for (const employee of employees) {
-      await fetch(`${API_BASE_URL}/employees`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(employee)
-      });
-    }
-    
-    console.log('✅ Synced to database:', shops.length, 'shops,', employees.length, 'employees');
-    alert('Data synced to database successfully!');
-  } catch (error) {
-    console.error('Sync failed:', error);
-    alert('Sync failed - check console');
-  }
-};
+  };
 
   // State
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
@@ -4129,432 +4222,156 @@ export default function App() {
   const [isEmployeePreview, setIsEmployeePreview] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-const [authToken, setAuthToken] = useState<string | null>(null);
-const [authUser, setAuthUser] = useState<any>(null);
-const [isCheckingAuth, setIsCheckingAuth] = useState(true);
-const [inviteToken, setInviteToken] = useState<string | null>(null);
-const [darkMode, setDarkMode] = useState(false);
-const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-const [showNotifications, setShowNotifications] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const [authUser, setAuthUser] = useState<unknown>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [darkMode, setDarkMode] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [showNotifications, setShowNotifications] = useState(false);
 
 
-
-
-
-// Check for existing login on startup
-useEffect(() => {
-  // Check if this is an invite link FIRST
-  const path = window.location.pathname;
-  if (path.startsWith('/invite/')) {
-    const token = path.replace('/invite/', '');
-    setInviteToken(token);
-    setIsCheckingAuth(false);
-    return; // Exit early - don't check auth
-  }
-  
-  // Otherwise, check for existing login
-  const checkAuth = async () => {
-    const token = localStorage.getItem('rosterpro_token');
-    const savedUser = localStorage.getItem('rosterpro_user');
-    
-    if (token && savedUser) {
-      try {
-        // Verify token is still valid
-        const response = await fetch('http://localhost:3001/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setAuthToken(token);
-          setAuthUser(data.user);
-          setIsAuthenticated(true);
-          
-          // Update currentUser with logged-in user data
-          if (data.user) {
-            setCurrentUser({
-              id: data.user.id,
-              name: data.user.employeeName || data.user.email.split('@')[0],
-              email: data.user.email,
-              role: data.user.role || 'employee',
-              company: data.user.company || 'Both',
-              employeeId: data.user.employeeId,
-            });
-          }
-        } else {
-          // Token invalid, clear storage
-          localStorage.removeItem('rosterpro_token');
-          localStorage.removeItem('rosterpro_user');
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-      }
+  // Check for existing login on startup
+  useEffect(() => {
+    // Check if this is an invite link FIRST
+    const path = window.location.pathname;
+    if (path.startsWith('/invite/')) {
+      const token = path.replace('/invite/', '');
+      setInviteToken(token);
+      setIsCheckingAuth(false);
+      return; // Exit early - don't check auth
     }
-    setIsCheckingAuth(false);
-  };
-  
-  checkAuth();
-}, []);
+    
+    // Otherwise, check for existing login
+    const checkAuth = async () => {
+      const token = localStorage.getItem('rosterpro_token');
+      const savedUser = localStorage.getItem('rosterpro_user');
+      
+      if (token && savedUser) {
+        try {
+          // Verify token is still valid
+          const response = await fetch('http://localhost:3001/api/auth/me', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            setAuthToken(token);
+            setAuthUser(data.user);
+            setIsAuthenticated(true);
+            
+            // Update currentUser with logged-in user data
+            if (data.user) {
+              setCurrentUser({
+                id: data.user.id,
+                name: data.user.employeeName || data.user.email.split('@')[0],
+                email: data.user.email,
+                role: data.user.role || 'employee',
+                company: data.user.company || 'Both',
+                employeeId: data.user.employeeId,
+              });
+            }
+          } else {
+            // Token invalid, clear storage
+            localStorage.removeItem('rosterpro_token');
+            localStorage.removeItem('rosterpro_user');
+          }
+        } catch (error) {
+          console.error('Auth check failed:', error);
+        }
+      }
+      setIsCheckingAuth(false);
+    };
+    
+    checkAuth();
+  }, []);
 
 
 // Handle login
-const handleLogin = (token: string, user: any) => {
+const handleLogin = (token: string, user: unknown) => {
   setAuthToken(token);
   setAuthUser(user);
   setIsAuthenticated(true);
   
   // Update currentUser with logged-in user data
-  if (user) {
-    setCurrentUser({
-      id: user.id,
-      name: user.employeeName || user.email.split('@')[0],
-      email: user.email,
-      role: user.role || 'employee',
-      company: user.company || 'Both',
-      employeeId: user.employeeId,
-    });
+  if (user && typeof user === 'object') {
+    const userData = user as { id: number; employeeName?: string; email: string; role?: string; company?: string; employeeId?: number };
+setCurrentUser({
+  id: userData.id,
+  name: userData.employeeName || userData.email.split('@')[0],
+  email: userData.email,
+  role: (userData.role as 'admin' | 'manager' | 'employee') || 'employee',
+  company: (userData.company as 'CMZ' | 'CS' | 'Both' | undefined) || 'Both',
+  employeeId: userData.employeeId,
+});
   }
 };
 
 
-// Handle logout
-const handleLogout = () => {
-  localStorage.removeItem('rosterpro_token');
-  localStorage.removeItem('rosterpro_user');
-  setAuthToken(null);
-  setAuthUser(null);
-  setIsAuthenticated(false);
-};
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem('rosterpro_token');
+    localStorage.removeItem('rosterpro_user');
+    setAuthToken(null);
+    setAuthUser(null);
+    setIsAuthenticated(false);
+  };
 
   // Data state
-const [shops, setShops] = useState<Shop[]>(SAMPLE_SHOPS);
-const [employees, setEmployees] = useState<Employee[]>(SAMPLE_EMPLOYEES);
+  // Data state
+const [shops, setShops] = useState<Shop[]>([]);
+const [employees, setEmployees] = useState<Employee[]>([]);
   const [shifts, setShifts] = useState<BackendShift[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[]>([]);
-const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
-const [partTimerAvailability, setPartTimerAvailability] = useState<PartTimerAvailability[]>([]);
-const [profileUpdateNotifications, setProfileUpdateNotifications] = useState<ProfileUpdateNotification[]>([]);
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [partTimerAvailability, setPartTimerAvailability] = useState<PartTimerAvailability[]>([]);
+  const [profileUpdateNotifications, setProfileUpdateNotifications] = useState<ProfileUpdateNotification[]>([]);
 
-// Debug: Track employee changes
-useEffect(() => {
-  console.log('📊 Employees updated:', employees.length, 'total,', 
-    employees.filter(e => !e.excludeFromRoster).length, 'active');
-}, [employees]);
+  // Debug: Track employee changes
+  useEffect(() => {
+    console.log('👥 Employees updated:', employees.length, 'total,', 
+      employees.filter(e => !e.excludeFromRoster).length, 'active');
+  }, [employees]);
 
-// Debug: Track shifts changes  
-useEffect(() => {
-  console.log('📅 Shifts updated:', shifts.length, 'total');
-}, [shifts]);
+  // Debug: Track shifts changes  
+  useEffect(() => {
+    console.log('📅 Shifts updated:', shifts.length, 'total');
+  }, [shifts]);
 
-// Load current week's roster on startup (ADD THIS AFTER the main loadData useEffect)
-useEffect(() => {
-  const loadCurrentWeekRoster = async () => {
-    const today = new Date();
-    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-    const weekKey = format(currentWeekStart, 'yyyy-MM-dd');
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/roster/load?weekStart=${weekKey}`);
-      if (response.ok) {
-        const data = await response.json();
-        if (data.shifts && data.shifts.length > 0) {
-          console.log(`📅 Loaded ${data.shifts.length} shifts for current week`);
-          setShifts(data.shifts);
+  // Load current week's roster on startup
+  useEffect(() => {
+    const loadCurrentWeekRoster = async () => {
+      const today = new Date();
+      const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+      const weekKey = format(currentWeekStart, 'yyyy-MM-dd');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/roster/load?weekStart=${weekKey}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.shifts && data.shifts.length > 0) {
+            console.log(`✅ Loaded ${data.shifts.length} shifts for current week`);
+            setShifts(data.shifts);
+          }
         }
+      } catch (error) {
+        console.error('Failed to load current week roster:', error);
       }
-    } catch (error) {
-      console.error('Failed to load current week roster:', error);
+    };
+    
+    // Only load after initial data is loaded
+    if (!isLoading && employees.length > 0) {
+      loadCurrentWeekRoster();
     }
-  };
-  
-  // Only load after initial data is loaded
-  if (!isLoading && employees.length > 0) {
-    loadCurrentWeekRoster();
-  }
-}, [isLoading, employees.length]);
-// Load initial data
+  }, [isLoading, employees.length]);
+
+  // Load initial data
 useEffect(() => {
   const loadData = async () => {
     setIsLoading(true);
     
-    // Day mapping for converting full names to short codes
-    const dayMap: Record<string, DayOfWeek> = {
-      'monday': 'Mon',
-      'tuesday': 'Tue', 
-      'wednesday': 'Wed',
-      'thursday': 'Thu',
-      'friday': 'Fri',
-      'saturday': 'Sat',
-      'sunday': 'Sun'
-    };
-    
-    // Complete shop configuration with all rules
-    const SHOP_CONFIG: Record<string, {
-      opening_hours: Record<string, { open: string | null; close: string | null }>;
-      shifts: Record<string, { am: number; pm: number }>;
-      rules: {
-        mandatory_days?: string[];
-        fixed_days_off?: { person: string; day: string }[];
-        special_shifts?: Record<string, { start: string; end: string; required_staff: number }[]>;
-        full_day_effect?: string;
-        sunday_closed?: boolean;
-      };
-    }> = {
-      'hamrun': {
-        opening_hours: {
-          monday: { open: '06:30', close: '21:30' },
-          tuesday: { open: '06:30', close: '21:30' },
-          wednesday: { open: '06:30', close: '21:30' },
-          thursday: { open: '06:30', close: '21:30' },
-          friday: { open: '06:30', close: '21:30' },
-          saturday: { open: '06:30', close: '21:30' },
-          sunday: { open: '07:30', close: '19:30' }
-        },
-        shifts: {
-          monday: { am: 4, pm: 2 },
-          tuesday: { am: 3, pm: 2 },
-          wednesday: { am: 3, pm: 2 },
-          thursday: { am: 3, pm: 2 },
-          friday: { am: 3, pm: 2 },
-          saturday: { am: 4, pm: 2 },
-          sunday: { am: 2, pm: 2 }
-        },
-        rules: {
-          mandatory_days: ['monday', 'saturday'],
-          full_day_effect: '1_full_day_reduces_1_am_shift'
-        }
-      },
-      'tigne point': {
-        opening_hours: {
-          monday: { open: '08:00', close: '20:30' },
-          tuesday: { open: '08:00', close: '20:30' },
-          wednesday: { open: '08:00', close: '20:30' },
-          thursday: { open: '08:00', close: '20:30' },
-          friday: { open: '08:00', close: '20:30' },
-          saturday: { open: '08:00', close: '20:30' },
-          sunday: { open: '08:00', close: '20:30' }
-        },
-        shifts: {
-          monday: { am: 1, pm: 1 },
-          tuesday: { am: 1, pm: 1 },
-          wednesday: { am: 1, pm: 1 },
-          thursday: { am: 1, pm: 1 },
-          friday: { am: 1, pm: 1 },
-          saturday: { am: 1, pm: 1 },
-          sunday: { am: 1, pm: 1 }
-        },
-        rules: {
-          full_day_effect: '1_full_day_requires_only_1_person'
-        }
-      },
-      'siggiewi': {
-        opening_hours: {
-          monday: { open: '06:30', close: '21:30' },
-          tuesday: { open: '06:30', close: '21:30' },
-          wednesday: { open: '06:30', close: '21:30' },
-          thursday: { open: '06:30', close: '21:30' },
-          friday: { open: '06:30', close: '21:30' },
-          saturday: { open: '06:30', close: '21:30' },
-          sunday: { open: '07:30', close: '19:30' }
-        },
-        shifts: {
-          monday: { am: 1, pm: 1 },
-          tuesday: { am: 1, pm: 1 },
-          wednesday: { am: 1, pm: 1 },
-          thursday: { am: 1, pm: 1 },
-          friday: { am: 1, pm: 1 },
-          saturday: { am: 1, pm: 1 },
-          sunday: { am: 1, pm: 1 }
-        },
-        rules: {
-          fixed_days_off: [
-            { person: 'Ricky', day: 'monday' },
-            { person: 'Anus', day: 'wednesday' }
-          ],
-          special_shifts: {
-            saturday: [
-              { start: '06:30', end: '14:00', required_staff: 1 },
-              { start: '10:00', end: '21:30', required_staff: 1 }
-            ]
-          },
-          full_day_effect: '1_full_day_requires_only_1_person'
-        }
-      },
-      'marsaxlokk': {
-        opening_hours: {
-          monday: { open: '06:30', close: '21:30' },
-          tuesday: { open: '06:30', close: '21:30' },
-          wednesday: { open: '06:30', close: '21:30' },
-          thursday: { open: '06:30', close: '21:30' },
-          friday: { open: '06:30', close: '21:30' },
-          saturday: { open: '06:30', close: '21:30' },
-          sunday: { open: '06:30', close: '21:30' }
-        },
-        shifts: {
-          monday: { am: 1, pm: 1 },
-          tuesday: { am: 1, pm: 1 },
-          wednesday: { am: 1, pm: 1 },
-          thursday: { am: 1, pm: 1 },
-          friday: { am: 1, pm: 1 },
-          saturday: { am: 1, pm: 1 },
-          sunday: { am: 1, pm: 1 }
-        },
-        rules: {
-          full_day_effect: '1_full_day_requires_only_1_person'
-        }
-      },
-      'marsascala': {
-        opening_hours: {
-          monday: { open: '06:30', close: '21:30' },
-          tuesday: { open: '06:30', close: '21:30' },
-          wednesday: { open: '06:30', close: '21:30' },
-          thursday: { open: '06:30', close: '21:30' },
-          friday: { open: '06:30', close: '21:30' },
-          saturday: { open: '06:30', close: '21:30' },
-          sunday: { open: '06:30', close: '21:30' }
-        },
-        shifts: {
-          monday: { am: 1, pm: 1 },
-          tuesday: { am: 1, pm: 1 },
-          wednesday: { am: 1, pm: 1 },
-          thursday: { am: 1, pm: 1 },
-          friday: { am: 1, pm: 1 },
-          saturday: { am: 1, pm: 1 },
-          sunday: { am: 1, pm: 1 }
-        },
-        rules: {
-          special_shifts: {
-            saturday: [
-              { start: '06:30', end: '21:30', required_staff: 1 },
-              { start: '06:30', end: '15:00', required_staff: 1 }
-            ],
-            sunday: [
-              { start: '10:00', end: '16:00', required_staff: 1 },
-              { start: '06:30', end: '21:30', required_staff: 1 }
-            ]
-          },
-          full_day_effect: '1_full_day_requires_only_1_person'
-        }
-      },
-      'mellieha': {
-        opening_hours: {
-          monday: { open: '06:30', close: '21:30' },
-          tuesday: { open: '06:30', close: '21:30' },
-          wednesday: { open: '06:30', close: '21:30' },
-          thursday: { open: '06:30', close: '21:30' },
-          friday: { open: '06:30', close: '21:30' },
-          saturday: { open: '06:30', close: '21:30' },
-          sunday: { open: '06:30', close: '21:30' }
-        },
-        shifts: {
-          monday: { am: 1, pm: 1 },
-          tuesday: { am: 1, pm: 1 },
-          wednesday: { am: 1, pm: 1 },
-          thursday: { am: 1, pm: 1 },
-          friday: { am: 1, pm: 1 },
-          saturday: { am: 1, pm: 1 },
-          sunday: { am: 1, pm: 1 }
-        },
-        rules: {
-          full_day_effect: '1_full_day_requires_only_1_person'
-        }
-      },
-      'rabat': {
-        opening_hours: {
-          monday: { open: '06:30', close: '21:30' },
-          tuesday: { open: '06:30', close: '21:30' },
-          wednesday: { open: '06:30', close: '21:30' },
-          thursday: { open: '06:30', close: '21:30' },
-          friday: { open: '06:30', close: '21:30' },
-          saturday: { open: '06:30', close: '21:30' },
-          sunday: { open: '06:30', close: '21:30' }
-        },
-        shifts: {
-          monday: { am: 1, pm: 1 },
-          tuesday: { am: 1, pm: 1 },
-          wednesday: { am: 1, pm: 1 },
-          thursday: { am: 1, pm: 1 },
-          friday: { am: 1, pm: 1 },
-          saturday: { am: 1, pm: 1 },
-          sunday: { am: 1, pm: 1 }
-        },
-        rules: {
-          full_day_effect: '1_full_day_requires_only_1_person'
-        }
-      },
-      'fgura': {
-        opening_hours: {
-          monday: { open: '07:00', close: '19:00' },
-          tuesday: { open: '07:00', close: '19:00' },
-          wednesday: { open: '07:00', close: '19:00' },
-          thursday: { open: '07:00', close: '19:00' },
-          friday: { open: '07:00', close: '20:00' },
-          saturday: { open: '07:00', close: '19:00' },
-          sunday: { open: '08:00', close: '13:00' }
-        },
-        shifts: {
-          monday: { am: 3, pm: 2 },
-          tuesday: { am: 2, pm: 2 },
-          wednesday: { am: 2, pm: 2 },
-          thursday: { am: 2, pm: 2 },
-          friday: { am: 3, pm: 2 },
-          saturday: { am: 3, pm: 2 },
-          sunday: { am: 2, pm: 0 }
-        },
-        rules: {
-          full_day_effect: '1_full_day_reduces_1_am_shift'
-        }
-      },
-      'carters': {
-        opening_hours: {
-          monday: { open: '07:00', close: '19:00' },
-          tuesday: { open: '07:00', close: '19:00' },
-          wednesday: { open: '07:00', close: '19:00' },
-          thursday: { open: '07:00', close: '19:00' },
-          friday: { open: '07:00', close: '20:00' },
-          saturday: { open: '07:00', close: '19:00' },
-          sunday: { open: '08:00', close: '13:00' }
-        },
-        shifts: {
-          monday: { am: 3, pm: 2 },
-          tuesday: { am: 3, pm: 2 },
-          wednesday: { am: 3, pm: 2 },
-          thursday: { am: 3, pm: 2 },
-          friday: { am: 3, pm: 2 },
-          saturday: { am: 3, pm: 2 },
-          sunday: { am: 2, pm: 0 }
-        },
-        rules: {
-          full_day_effect: '1_full_day_reduces_1_am_shift'
-        }
-      },
-      'zabbar': {
-        opening_hours: {
-          monday: { open: '07:00', close: '19:00' },
-          tuesday: { open: '07:00', close: '19:00' },
-          wednesday: { open: '07:00', close: '19:00' },
-          thursday: { open: '07:00', close: '19:00' },
-          friday: { open: '07:00', close: '19:00' },
-          saturday: { open: '07:00', close: '19:00' },
-          sunday: { open: null, close: null }
-        },
-        shifts: {
-          monday: { am: 2, pm: 1 },
-          tuesday: { am: 1, pm: 1 },
-          wednesday: { am: 1, pm: 1 },
-          thursday: { am: 1, pm: 1 },
-          friday: { am: 1, pm: 1 },
-          saturday: { am: 2, pm: 1 },
-          sunday: { am: 0, pm: 0 }
-        },
-        rules: {
-          full_day_effect: '1_full_day_requires_only_1_person',
-          sunday_closed: true
-        }
-      }
-    };
-
     try {
       // Load shops from API
       const shopsResponse = await fetch(`${API_BASE_URL}/shops`);
@@ -4564,67 +4381,27 @@ useEffect(() => {
         const shopsData = await shopsResponse.json();
         
         loadedShops = shopsData.map((shop: any) => {
-          const shopNameLower = shop.name.toLowerCase();
-          const config = SHOP_CONFIG[shopNameLower];
-          
-          // Build requirements from config or use defaults
-          let requirements: Shop['requirements'] = [];
-          let specialRequests: Shop['specialRequests'] = [];
-          
-          if (config) {
-            // Build daily requirements from config
-            requirements = Object.entries(config.shifts).map(([dayName, shifts]) => {
-              const dayCode = dayMap[dayName];
-              const hours = config.opening_hours[dayName];
-              const isMandatory = config.rules.mandatory_days?.includes(dayName) || false;
-              
-              // Calculate AM/PM split times (midpoint)
-              const openTime = hours.open || '06:00';
-              const closeTime = hours.close || '21:00';
-              
-              return {
-                day: dayCode,
-                amStaff: shifts.am,
-                pmStaff: shifts.pm,
-                amStart: openTime,
-                amEnd: '14:00',
-                pmStart: '14:00',
-                pmEnd: closeTime,
-                isMandatory
-              };
-            });
-            
-            // Build special shifts from config
-            if (config.rules.special_shifts) {
-              specialRequests = Object.entries(config.rules.special_shifts).map(([dayName, shifts], idx) => ({
-                id: `special-${shopNameLower}-${dayName}-${idx}`,
-                day: dayMap[dayName],
-                shifts: shifts.map(s => ({
-                  start: s.start,
-                  end: s.end,
-                  notes: `Required staff: ${s.required_staff}`
-                }))
-              }));
-            }
-          } else {
-            // Fallback to DEFAULT_SHOP_REQUIREMENTS
-            requirements = DEFAULT_SHOP_REQUIREMENTS;
-          }
-          
+          // USE DATABASE VALUES - don't overwrite with SHOP_CONFIG
           return {
             id: shop.id,
             name: shop.name,
             company: shop.company,
-            isActive: shop.is_active ?? true,
+            isActive: shop.isActive ?? true,
             address: shop.address || '',
             phone: shop.phone || '',
-            openTime: config?.opening_hours?.monday?.open || shop.opening_time || '06:00',
-            closeTime: config?.opening_hours?.monday?.close || shop.closing_time || '21:00',
-            requirements,
-            specialRequests,
-            assignedEmployees: [],
-            // Store additional rules for roster generation
-            rules: config?.rules || {}
+            openTime: shop.openTime || '06:00',
+            closeTime: shop.closeTime || '21:00',
+            // USE THE VALUES FROM DATABASE
+            requirements: shop.requirements || [],
+            specialRequests: shop.specialRequests || [],
+            fixedDaysOff: shop.fixedDaysOff || [],
+            specialDayRules: shop.specialDayRules || [],
+            assignedEmployees: shop.assignedEmployees || [],
+            rules: shop.rules || {},
+            minStaffAtOpen: shop.minStaffAtOpen || 1,
+            minStaffMidday: shop.minStaffMidday || 1,
+            minStaffAtClose: shop.minStaffAtClose || 1,
+            canBeSolo: shop.canBeSolo || false,
           };
         });
       }
@@ -4636,29 +4413,53 @@ useEffect(() => {
       if (employeesResponse.ok) {
         const employeesData = await employeesResponse.json();
         
-loadedEmployees = employeesData.map((emp: any) => ({
-  id: emp.id,
-  name: emp.name,
-  email: emp.email,
-  phone: emp.phone || '',
-  company: emp.company,
-  employmentType: emp.employmentType || 'full-time',
-  role: emp.role || 'staff',
-  weeklyHours: emp.weeklyHours || 40,
-  payScaleId: emp.payScaleId || 'scale1',
-  allowanceIds: emp.allowanceIds || [],
-  excludeFromRoster: emp.excludeFromRoster || false,
-  hasSystemAccess: emp.hasSystemAccess || false,
-  systemRole: emp.systemRole,
-  idNumber: emp.idNumber || '',
-  taxNumber: emp.taxNumber || '',
-  ssnNumber: emp.ssnNumber || '',
-  tcnNumber: emp.tcnNumber || '',
-  tcnExpiry: emp.tcnExpiry || '',
-  iban: emp.iban || '',
-  primaryShopId: emp.primaryShopId,
-  secondaryShopIds: emp.secondaryShopIds || [],
-}));
+        loadedEmployees = employeesData.map((emp: {
+          id: number;
+          name: string;
+          email: string;
+          phone?: string;
+          company: string;
+          employmentType?: string;
+          role?: string;
+          weeklyHours?: number;
+          payScaleId?: string;
+          allowanceIds?: string[];
+          excludeFromRoster?: boolean;
+          hasSystemAccess?: boolean;
+          systemRole?: string;
+          idNumber?: string;
+          taxNumber?: string;
+          ssnNumber?: string;
+          tcnNumber?: string;
+          tcnExpiry?: string;
+          iban?: string;
+          primaryShopId?: number;
+          secondaryShopIds?: number[];
+        }) => ({
+          id: emp.id,
+          name: emp.name,
+          email: emp.email,
+          phone: emp.phone || '',
+          company: emp.company,
+          employmentType: emp.employmentType || 'full-time',
+          role: emp.role || 'staff',
+          weeklyHours: emp.weeklyHours || 40,
+          payScaleId: emp.payScaleId || 'scale1',
+          allowanceIds: emp.allowanceIds || [],
+          excludeFromRoster: emp.excludeFromRoster || false,
+          hasSystemAccess: emp.hasSystemAccess || false,
+          systemRole: emp.systemRole,
+          idNumber: emp.idNumber || '',
+          taxNumber: emp.taxNumber || '',
+          ssnNumber: emp.ssnNumber || '',
+          tcnNumber: emp.tcnNumber || '',
+          tcnExpiry: emp.tcnExpiry || '',
+          iban: emp.iban || '',
+          primaryShopId: emp.primaryShopId,
+          secondaryShopIds: emp.secondaryShopIds || [],
+        }));
+      }
+
       // Load leave requests
       try {
         const leaveResponse = await fetch(`${API_BASE_URL}/leave`);
@@ -4666,7 +4467,7 @@ loadedEmployees = employeesData.map((emp: any) => ({
           const leaveData = await leaveResponse.json();
           if (leaveData.length > 0) {
             setLeaveRequests(leaveData);
-            console.log('✅ Loaded leave requests:', leaveData.length);
+            console.log(' Loaded leave requests:', leaveData.length);
           }
         }
       } catch (err) {
@@ -4680,22 +4481,12 @@ loadedEmployees = employeesData.map((emp: any) => ({
           const swapsData = await swapsResponse.json();
           if (swapsData.length > 0) {
             setSwapRequests(swapsData);
-            console.log('✅ Loaded swap requests:', swapsData.length);
+            console.log(' Loaded swap requests:', swapsData.length);
           }
         }
       } catch (err) {
         console.error('Failed to load swap requests:', err);
       }
-// Inside loadData function, add at the end:
-
-// Load current week's roster
-const today = new Date();
-const dayOfWeek = today.getDay();
-const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-const currentMonday = new Date(today);
-currentMonday.setDate(today.getDate() + mondayOffset);
-currentMonday.setHours(0, 0, 0, 0);
-
 
       // Load profile updates
       try {
@@ -4704,41 +4495,42 @@ currentMonday.setHours(0, 0, 0, 0);
           const profileData = await profileResponse.json();
           if (profileData.length > 0) {
             setProfileUpdateNotifications(profileData);
-            console.log('✅ Loaded profile updates:', profileData.length);
+            console.log(' Loaded profile updates:', profileData.length);
           }
         }
       } catch (err) {
         console.error('Failed to load profile updates:', err);
       }
 
-
-      }
-
       // Link employees to shops
       const shopsWithEmployees = loadedShops.map(shop => {
-const assignedEmployees = loadedEmployees
-  .filter(emp => 
-    emp.primaryShopId === shop.id || 
-    (emp.secondaryShopIds || []).includes(shop.id)
-  )
-  .map(emp => ({
-    employeeId: emp.id,
-    isPrimary: emp.primaryShopId === shop.id
-  }));
+        const assignedEmployees = loadedEmployees
+          .filter(emp => 
+            emp.primaryShopId === shop.id || 
+            (emp.secondaryShopIds || []).includes(shop.id)
+          )
+          .map(emp => ({
+            employeeId: emp.id,
+            isPrimary: emp.primaryShopId === shop.id
+          }));
 
-if (shop.name === 'Hamrun') console.log('Hamrun assigned:', assignedEmployees);
+        if (shop.name === 'Hamrun') console.log('Hamrun assigned:', assignedEmployees);
 
-return { ...shop, assignedEmployees };
-});
+        return { ...shop, assignedEmployees };
+      });
 
+      // Set state with loaded data or fallback to samples
+      if (shopsWithEmployees.length > 0) {
+        setShops(shopsWithEmployees);
+      } else {
+        setShops(SAMPLE_SHOPS);
+      }
 
-if (shopsWithEmployees.length > 0) {
-  setShops(shopsWithEmployees);
-}
-if (loadedEmployees.length > 0) {
-  setEmployees(loadedEmployees);console.log('Loaded employees:', loadedEmployees);
-}
-
+      if (loadedEmployees.length > 0) {
+        setEmployees(loadedEmployees);
+      } else {
+        setEmployees(SAMPLE_EMPLOYEES);
+      }
 
       console.log('Loaded shops with config:', shopsWithEmployees);
       console.log('First employee employmentType:', loadedEmployees[0]?.employmentType);
@@ -4758,15 +4550,16 @@ if (loadedEmployees.length > 0) {
 
 
 
+
   // Handle employee preview mode - reset view if needed
-useEffect(() => {
-  if (isEmployeePreview) {
-    const employeeViews: ViewType[] = ['portal', 'roster', 'leave', 'swaps', 'settings'];
-    if (!employeeViews.includes(activeView)) {
-      setActiveView('portal');  // Default to portal instead of roster
+  useEffect(() => {
+    if (isEmployeePreview) {
+      const employeeViews: ViewType[] = ['portal', 'roster', 'leave', 'swaps', 'settings'];
+      if (!employeeViews.includes(activeView)) {
+        setActiveView('portal');
+      }
     }
-  }
-}, [isEmployeePreview, activeView]);
+  }, [isEmployeePreview, activeView]);
 
 
   // Render loading state
@@ -4782,373 +4575,385 @@ useEffect(() => {
   }
 
   // Render view content
-const renderContent = () => {
-  switch (activeView) {
-    case 'dashboard':
-      return (
-        <DashboardView
-          shops={shops}
-          employees={employees}
-          shifts={shifts}
-          leaveRequests={leaveRequests}
-          swapRequests={swapRequests}
-          profileUpdateNotifications={profileUpdateNotifications}
-          onNavigate={setActiveView}
-          onGenerateRoster={() => {
-            setActiveView('roster');
-          }}
-          onOpenAvailability={() => setShowAvailabilityModal(true)}
-          onSyncData={() => {
-            window.location.reload();
-          }}
-          onApproveProfileUpdate={(id) => {
-            setProfileUpdateNotifications(prev => 
-              prev.map(n => n.id === id ? { ...n, status: 'approved' as const } : n)
-            );
-          }}
-          onRejectProfileUpdate={(id) => {
-            setProfileUpdateNotifications(prev => 
-              prev.map(n => n.id === id ? { ...n, status: 'rejected' as const } : n)
-            );
-          }}
-        />
-      );
+  const renderContent = () => {
+    switch (activeView) {
+      case 'dashboard':
+        return (
+          <DashboardView
+            shops={shops}
+            employees={employees}
+            shifts={shifts}
+            leaveRequests={leaveRequests}
+            swapRequests={swapRequests}
+            profileUpdateNotifications={profileUpdateNotifications}
+            onNavigate={setActiveView}
+            onGenerateRoster={() => {
+              setActiveView('roster');
+            }}
+            onOpenAvailability={() => setShowAvailabilityModal(true)}
+            onSyncData={() => {
+              window.location.reload();
+            }}
+            onApproveProfileUpdate={(id) => {
+              setProfileUpdateNotifications(prev => 
+                prev.map(n => n.id === id ? { ...n, status: 'approved' as const } : n)
+              );
+            }}
+            onRejectProfileUpdate={(id) => {
+              setProfileUpdateNotifications(prev => 
+                prev.map(n => n.id === id ? { ...n, status: 'rejected' as const } : n)
+              );
+            }}
+          />
+        );
 
 
-    case 'roster':
-      // If employee preview mode, filter to only show shops where employee is working
-      if (isEmployeePreview) {
-        const previewEmployee = employees.find(e => e.id === currentUser.employeeId) || employees[0];
-        const currentWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
-        const weekEnd = addDays(currentWeek, 6);
-        
-        // Get shop IDs where this employee has shifts this week
-        const employeeShopIds = [...new Set(
-          shifts
-            .filter(s => {
-              const shiftDate = parseISO(s.date);
-              return s.employeeId === previewEmployee.id && 
-                     shiftDate >= currentWeek && 
-                     shiftDate <= weekEnd;
-            })
-            .map(s => s.shopId)
-        )];
-        
-        // Filter shops to only those where employee is working
-        const employeeShops = shops.filter(s => employeeShopIds.includes(s.id));
+      case 'roster':
+        // If employee preview mode, filter to only show shops where employee is working
+        if (isEmployeePreview) {
+          const previewEmployee = employees.find(e => e.id === currentUser.employeeId) || employees[0];
+          const currentWeek = startOfWeek(new Date(), { weekStartsOn: 1 });
+          const weekEnd = addDays(currentWeek, 6);
+          
+          // Get shop IDs where this employee has shifts this week
+          const employeeShopIds = [...new Set(
+            shifts
+              .filter(s => {
+                const shiftDate = typeof s.date === 'string' ? parseISO(s.date) : s.date;
+                return s.employeeId === previewEmployee.id && 
+                       shiftDate >= currentWeek && 
+                       shiftDate <= weekEnd;
+              })
+              .map(s => s.shopId)
+          )];
+          
+          // Filter shops to only those where employee is working
+          const employeeShops = shops.filter(s => employeeShopIds.includes(s.id));
+          
+          return (
+            <RosterView
+              shops={employeeShops.length > 0 ? employeeShops : shops.filter(s => s.id === previewEmployee.primaryShopId)}
+              employees={employees}
+              shifts={shifts}
+              setShifts={setShifts}
+              leaveRequests={leaveRequests}
+            />
+          );
+        }
         
         return (
           <RosterView
-            shops={employeeShops.length > 0 ? employeeShops : shops.filter(s => s.id === previewEmployee.primaryShopId)}
+            shops={shops}
             employees={employees}
             shifts={shifts}
             setShifts={setShifts}
             leaveRequests={leaveRequests}
           />
         );
-      }
-      
-      return (
-        <RosterView
-  shops={shops}
-  employees={employees}
-  shifts={shifts}
-  setShifts={setShifts}
-  leaveRequests={leaveRequests}
-/>
-
-      );
 
 
-    case 'shops':
-      return (
-        <ShopsView
-          shops={shops}
-          setShops={setShops}
-          employees={employees}
-          setEmployees={setEmployees}
-        />
-      );
+      case 'shops':
+        return (
+          <ShopsView
+            shops={shops}
+            setShops={setShops}
+            employees={employees}
+            setEmployees={setEmployees}
+          />
+        );
 
-    case 'employees':
-  return (
-    <EmployeesView
-      employees={employees}
-      setEmployees={setEmployees}
-      shops={shops}
-      setShops={setShops}
-    />
-  );
+      case 'employees':
+        return (
+          <EmployeesView
+            employees={employees}
+            setEmployees={setEmployees}
+            shops={shops}
+            setShops={setShops}
+          />
+        );
 
 
-    case 'payscales':
-      return <PayScalesView />;
+      case 'payscales':
+        return <PayScalesView />;
 
-    case 'overtime':
-      return (
-        <OvertimeView
-          employees={employees}
-          shifts={shifts}
-        />
-      );
+      case 'overtime':
+        return (
+          <OvertimeView
+            employees={employees}
+            shifts={shifts}
+          />
+        );
 
-    case 'leave':
-      return (
-        <LeaveView
-          leaveRequests={leaveRequests}
-          setLeaveRequests={setLeaveRequests}
-          employees={employees}
-          currentUser={currentUser}
-        />
-      );
+      case 'leave':
+        return (
+          <LeaveView
+            leaveRequests={leaveRequests}
+            setLeaveRequests={setLeaveRequests}
+            employees={employees}
+            currentUser={currentUser}
+          />
+        );
 
-    case 'swaps':
-      return (
-        <SwapsView
-          swapRequests={swapRequests}
-          setSwapRequests={setSwapRequests}
-          employees={employees}
-          shifts={shifts}
-          setShifts={setShifts}
-          currentUser={currentUser}
-        />
-      );
+      case 'swaps':
+        return (
+          <SwapsView
+            swapRequests={swapRequests}
+            setSwapRequests={setSwapRequests}
+            employees={employees}
+            shifts={shifts}
+            setShifts={setShifts}
+            currentUser={currentUser}
+          />
+        );
 
       case 'settings':
-  return <SettingsView currentUser={currentUser} onSyncToDatabase={syncToDatabase} darkMode={darkMode} setDarkMode={setDarkMode} notificationsEnabled={notificationsEnabled} setNotificationsEnabled={setNotificationsEnabled}/>;
-    case 'portal':
-      const portalEmployee = employees.find(e => e.id === currentUser.employeeId) || employees[0];
-      return (
-        <EmployeePortalView
-          employee={portalEmployee}
-          shifts={shifts}
-          shops={shops}
-          employees={employees}
-          leaveRequests={leaveRequests}
-          setLeaveRequests={setLeaveRequests}
-          swapRequests={swapRequests}
-          setSwapRequests={setSwapRequests}
-          onProfileUpdate={(notification) => {
-            setProfileUpdateNotifications(prev => [...prev, notification]);
-          }}
-          onEmployeeUpdate={(updatedEmployee) => {
-            setEmployees(prev => prev.map(e => 
-              e.id === updatedEmployee.id ? updatedEmployee : e
-            ));
-          }}
-        />
-      );
+        return (
+          <SettingsView 
+            currentUser={currentUser} 
+            onSyncToDatabase={syncToDatabase} 
+            darkMode={darkMode} 
+            setDarkMode={setDarkMode} 
+            notificationsEnabled={notificationsEnabled} 
+            setNotificationsEnabled={setNotificationsEnabled}
+          />
+        );
 
-     case 'users':
-  return (
-    <UsersView
-      employees={employees}
-      shops={shops}
-    />
-  );
-    default:
-      return (
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold text-gray-700">View not found</h2>
-          <p className="text-gray-500 mt-2">Select a view from the sidebar</p>
-        </div>
-      );
-  }
-};
+      case 'portal':
+        const portalEmployee = employees.find(e => e.id === currentUser.employeeId) || employees[0];
+        return (
+          <EmployeePortalView
+            employee={portalEmployee}
+            shifts={shifts}
+            shops={shops}
+            employees={employees}
+            leaveRequests={leaveRequests}
+            setLeaveRequests={setLeaveRequests}
+            swapRequests={swapRequests}
+            setSwapRequests={setSwapRequests}
+            onProfileUpdate={(notification) => {
+              setProfileUpdateNotifications(prev => [...prev, notification]);
+            }}
+            onEmployeeUpdate={(updatedEmployee) => {
+              setEmployees(prev => prev.map(e => 
+                e.id === updatedEmployee.id ? updatedEmployee : e
+              ));
+            }}
+          />
+        );
 
+      case 'users':
+        return (
+          <UsersView
+            employees={employees}
+            shops={shops}
+          />
+        );
 
- // Show loading while checking auth
-if (isCheckingAuth) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
-      <div className="text-center">
-        <LoadingSpinner size="lg" />
-        <p className="mt-4 text-gray-600">Loading RosterPro...</p>
-      </div>
-    </div>
-  );
-}
-
-// Show login page if not authenticated
-// Show invite page if invite token present
-if (inviteToken) {
-  return (
-    <InviteAcceptPage 
-      token={inviteToken} 
-      onComplete={() => {
-        setInviteToken(null);
-        window.history.pushState({}, '', '/');
-      }} 
-    />
-  );
-}
-
-// Show login page if not authenticated
-if (!isAuthenticated) {
-  return <LoginPage onLogin={handleLogin} />;
-}
-
-
-
-return (
-  <div className={`min-h-screen transition-colors duration-300 ${
-    darkMode 
-      ? 'bg-gradient-to-br from-slate-900 to-slate-800 text-white' 
-      : 'bg-gradient-to-br from-slate-100 to-slate-200'
-  }`}>
-    {/* Sidebar */}
-    <Sidebar
-      activeView={activeView}
-      setActiveView={setActiveView}
-      currentUser={currentUser}
-      isCollapsed={sidebarCollapsed}
-      setIsCollapsed={setSidebarCollapsed}
-      isEmployeePreview={isEmployeePreview}
-      setIsEmployeePreview={setIsEmployeePreview}
-      onLogout={handleLogout}
-    />
-
-    {/* Main Content */}
-    <main className={`transition-all duration-300 ${
-      sidebarCollapsed ? 'ml-16' : 'ml-64'
-    }`}>
-      {/* Top Bar */}
-      <header className={`sticky top-0 z-30 backdrop-blur-sm border-b transition-colors duration-300 ${
-  darkMode 
-    ? 'bg-slate-800/80 border-slate-700' 
-    : 'bg-white/80 border-gray-200'
-}`}>
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            {isEmployeePreview && (
-              <Badge variant="purple" className="animate-pulse">
-                <Eye className="w-3 h-3 mr-1" />
-                Employee Preview Mode
-              </Badge>
-            )}
+      default:
+        return (
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold text-gray-700">View not found</h2>
+            <p className="text-gray-500 mt-2">Select a view from the sidebar</p>
           </div>
-          
-          <div className="flex items-center gap-4">
-            {/* Notifications Bell */}
-            <div className="relative">
-              <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors relative"
-              >
-                <Bell className="w-5 h-5" />
-                {(leaveRequests.filter(r => r.status === 'pending').length + 
-                  swapRequests.filter(r => r.status === 'pending').length) > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
-                )}
-              </button>
-              
-              {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
-                  <div className="p-4 border-b border-gray-200">
-                    <h3 className="font-semibold text-gray-900">Notifications</h3>
-                  </div>
-                  <div className="max-h-96 overflow-y-auto">
-                    {leaveRequests.filter(r => r.status === 'pending').length === 0 &&
-                     swapRequests.filter(r => r.status === 'pending').length === 0 ? (
-                      <div className="p-4 text-center text-gray-500">
-                        No pending notifications
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-gray-100">
-                        {leaveRequests.filter(r => r.status === 'pending').map(request => {
-                          const employee = employees.find(e => e.id === request.employeeId);
-                          return (
-                            <div 
-                              key={request.id} 
-                              className="p-3 hover:bg-gray-50 cursor-pointer"
-                              onClick={() => {
-                                setActiveView('leave');
-                                setShowNotifications(false);
-                              }}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                                  <ClipboardList className="w-4 h-4 text-yellow-600" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">Leave Request</p>
-                                  <p className="text-xs text-gray-500">{employee?.name} - {request.type}</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {swapRequests.filter(r => r.status === 'pending').map(request => {
-                          const requester = employees.find(e => e.id === request.requesterId);
-                          return (
-                            <div 
-                              key={request.id} 
-                              className="p-3 hover:bg-gray-50 cursor-pointer"
-                              onClick={() => {
-                                setActiveView('swaps');
-                                setShowNotifications(false);
-                              }}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-                                  <Repeat className="w-4 h-4 text-purple-600" />
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">Swap Request</p>
-                                  <p className="text-xs text-gray-500">{requester?.name} wants to swap</p>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
+        );
+    }
+  };
+
+
+  // Show loading while checking auth
+  if (isCheckingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200">
+        <div className="text-center">
+          <LoadingSpinner size="lg" />
+          <p className="mt-4 text-gray-600">Loading RosterPro...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show invite page if invite token present
+  if (inviteToken) {
+    return (
+      <InviteAcceptPage 
+        token={inviteToken} 
+        onComplete={() => {
+          setInviteToken(null);
+          window.history.pushState({}, '', '/');
+        }} 
+      />
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />;
+  }
+
+  // Suppress unused variable warnings
+  void authToken;
+  void authUser;
+
+  return (
+    <div className={`min-h-screen transition-colors duration-300 ${
+      darkMode 
+        ? 'bg-gradient-to-br from-slate-900 to-slate-800 text-white' 
+        : 'bg-gradient-to-br from-slate-100 to-slate-200'
+    }`}>
+      {/* Sidebar */}
+      <Sidebar
+        activeView={activeView}
+        setActiveView={setActiveView}
+        currentUser={currentUser}
+        isCollapsed={sidebarCollapsed}
+        setIsCollapsed={setSidebarCollapsed}
+        isEmployeePreview={isEmployeePreview}
+        setIsEmployeePreview={setIsEmployeePreview}
+        onLogout={handleLogout}
+      />
+
+      {/* Main Content */}
+      <main className={`transition-all duration-300 ${
+        sidebarCollapsed ? 'ml-16' : 'ml-64'
+      }`}>
+        {/* Top Bar */}
+        <header className={`sticky top-0 z-30 backdrop-blur-sm border-b transition-colors duration-300 ${
+          darkMode 
+            ? 'bg-slate-800/80 border-slate-700' 
+            : 'bg-white/80 border-gray-200'
+        }`}>
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center gap-4">
+              {isEmployeePreview && (
+                <Badge variant="purple" className="animate-pulse">
+                  <Eye className="w-3 h-3 mr-1" />
+                  Employee Preview Mode
+                </Badge>
               )}
             </div>
             
-            {/* User Avatar */}
-            <div className="flex items-center gap-2">
-              <Avatar name={currentUser.name} size="sm" />
-              <span className="text-sm font-medium text-gray-700 hidden md:block">
-                {currentUser.name}
-              </span>
+            <div className="flex items-center gap-4">
+              {/* Notifications Bell */}
+              <div className="relative">
+                <button 
+                  onClick={() => setShowNotifications(!showNotifications)}
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors relative"
+                >
+                  <Bell className="w-5 h-5" />
+                  {(leaveRequests.filter(r => r.status === 'pending').length + 
+                    swapRequests.filter(r => r.status === 'pending').length) > 0 && (
+                    <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+                  )}
+                </button>
+                
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50">
+                    <div className="p-4 border-b border-gray-200">
+                      <h3 className="font-semibold text-gray-900">Notifications</h3>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      {leaveRequests.filter(r => r.status === 'pending').length === 0 &&
+                       swapRequests.filter(r => r.status === 'pending').length === 0 ? (
+                        <div className="p-4 text-center text-gray-500">
+                          No pending notifications
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-gray-100">
+                          {leaveRequests.filter(r => r.status === 'pending').map(request => {
+                            const employee = employees.find(e => e.id === request.employeeId);
+                            return (
+                              <div 
+                                key={request.id} 
+                                className="p-3 hover:bg-gray-50 cursor-pointer"
+                                onClick={() => {
+                                  setActiveView('leave');
+                                  setShowNotifications(false);
+                                }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
+                                    <ClipboardList className="w-4 h-4 text-yellow-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">Leave Request</p>
+                                    <p className="text-xs text-gray-500">{employee?.name} - {request.type}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {swapRequests.filter(r => r.status === 'pending').map(request => {
+                            const requester = employees.find(e => e.id === request.requesterId);
+                            return (
+                              <div 
+                                key={request.id} 
+                                className="p-3 hover:bg-gray-50 cursor-pointer"
+                                onClick={() => {
+                                  setActiveView('swaps');
+                                  setShowNotifications(false);
+                                }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                                    <Repeat className="w-4 h-4 text-purple-600" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-900">Swap Request</p>
+                                    <p className="text-xs text-gray-500">{requester?.name} wants to swap</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* User Avatar */}
+              <div className="flex items-center gap-2">
+                <Avatar name={currentUser.name} size="sm" />
+                <span className="text-sm font-medium text-gray-700 hidden md:block">
+                  {currentUser.name}
+                </span>
+              </div>
             </div>
           </div>
+        </header>
+
+        {/* Page Content */}
+        <div className="p-6">
+          {renderContent()}
         </div>
-      </header>
 
-      {/* Page Content */}
-      <div className="p-6">
-        {renderContent()}
-      </div>
+        {/* Footer */}
+        <footer className={`border-t px-6 py-4 mt-8 transition-colors duration-300 ${
+          darkMode 
+            ? 'border-slate-700 bg-slate-800/50 text-slate-400' 
+            : 'border-gray-200 bg-white/50'
+        }`}>
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <p>RosterPro v12.6 - Trapped Employee Guaranteed Coverage</p>
+            <p>© 2024 RosterPro. All rights reserved.</p>
+          </div>
+        </footer>
+      </main>
 
-      {/* Footer */}
-      <footer className={`border-t px-6 py-4 mt-8 transition-colors duration-300 ${
-  darkMode 
-    ? 'border-slate-700 bg-slate-800/50 text-slate-400' 
-    : 'border-gray-200 bg-white/50'
-}`}>
-        <div className="flex items-center justify-between text-sm text-gray-500">
-          <p>RosterPro v12.6 - Trapped Employee Guaranteed Coverage</p>
-          <p>© 2024 RosterPro. All rights reserved.</p>
-        </div>
-      </footer>
-    </main>
-
-    {/* Part-Timer Availability Modal */}
-    <AvailabilityModal
-      isOpen={showAvailabilityModal}
-      onClose={() => setShowAvailabilityModal(false)}
-      employees={employees}
-      shops={shops}
-      weekStart={startOfWeek(new Date(), { weekStartsOn: 1 })}
-      availability={partTimerAvailability}
-      onSave={(availability) => {
-        setPartTimerAvailability(availability);
-        console.log('Saved availability:', availability);
-      }}
-    />
-  </div>
-);}
+      {/* Part-Timer Availability Modal */}
+      <AvailabilityModal
+        isOpen={showAvailabilityModal}
+        onClose={() => setShowAvailabilityModal(false)}
+        employees={employees}
+        shops={shops}
+        weekStart={startOfWeek(new Date(), { weekStartsOn: 1 })}
+        availability={partTimerAvailability}
+        onSave={(availability) => {
+          setPartTimerAvailability(availability);
+          console.log('Saved availability:', availability);
+        }}
+      />
+    </div>
+  );
+}

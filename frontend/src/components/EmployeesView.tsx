@@ -62,12 +62,40 @@ const EmployeesView = memo(function EmployeesView({
     partTime: employees.filter(e => e.employmentType === 'part-time').length,
   }), [employees]);
 
-  const handleDeleteEmployee = useCallback(() => {
-    if (!selectedEmployee) return;
-    setEmployees(prev => prev.filter(emp => emp.id !== selectedEmployee.id));
-    setShowDeleteConfirm(false);
-    setSelectedEmployee(null);
-  }, [selectedEmployee, setEmployees]);
+const handleDeleteEmployee = useCallback(async () => {
+  if (!selectedEmployee) return;
+  
+  try {
+    // Delete from backend
+    const response = await fetch(`http://localhost:3001/api/employees/${selectedEmployee.id}`, {
+      method: 'DELETE',
+    });
+    
+    if (response.ok) {
+      // Remove from local state
+      setEmployees(prev => prev.filter(emp => emp.id !== selectedEmployee.id));
+      
+      // Also remove from shop assignments
+      setShops(prev => prev.map(shop => ({
+        ...shop,
+        assignedEmployees: (shop.assignedEmployees || []).filter(
+          a => a.employeeId !== selectedEmployee.id
+        )
+      })));
+      
+      console.log('✅ Employee deleted:', selectedEmployee.id, selectedEmployee.name);
+    } else {
+      console.error('Failed to delete employee:', response.status);
+      alert('Failed to delete employee from database');
+    }
+  } catch (error) {
+    console.error('Delete error:', error);
+    alert('Failed to delete employee - check if backend is running');
+  }
+  
+  setShowDeleteConfirm(false);
+  setSelectedEmployee(null);
+}, [selectedEmployee, setEmployees, setShops]);
 
 const handleSaveEmployee = useCallback(async (employeeData: Partial<Employee>) => {
   let savedEmployeeId: number;
@@ -466,7 +494,7 @@ function EmployeeFormModal({ isOpen, onClose, onSave, employee, shops }: Employe
 
   const availableShops = useMemo(() => {
     if (formData.company === 'Both') return shops;
-    return shops.filter(s => s.company === formData.company || s.company === 'Both');
+    return shops.filter(s => s.company === formData.company || formData.company === 'Both');
   }, [shops, formData.company]);
 
   const toggleSecondaryShop = (shopId: number) => {

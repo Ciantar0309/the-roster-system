@@ -27,10 +27,17 @@ app.get('/api/shops', (req, res) => {
     const parsed = shops.map((shop: any) => ({
       ...shop,
       isActive: Boolean(shop.isActive),
-      requirements: shop.requirements ? JSON.parse(shop.requirements) : {},
+      requirements: shop.requirements ? JSON.parse(shop.requirements) : [],
       specialRequests: shop.specialRequests ? JSON.parse(shop.specialRequests) : [],
+      fixedDaysOff: shop.fixedDaysOff ? JSON.parse(shop.fixedDaysOff) : [],
+      specialDayRules: shop.specialDayRules ? JSON.parse(shop.specialDayRules) : [],
       assignedEmployees: shop.assignedEmployees ? JSON.parse(shop.assignedEmployees) : [],
-      rules: shop.rules ? JSON.parse(shop.rules) : null
+      rules: shop.rules ? JSON.parse(shop.rules) : null,
+      // New staffing fields with defaults
+      minStaffAtOpen: shop.minStaffAtOpen || 1,
+      minStaffMidday: shop.minStaffMidday || 1,
+      minStaffAtClose: shop.minStaffAtClose || 1,
+      canBeSolo: Boolean(shop.canBeSolo)
     }));
     res.json(parsed);
   } catch (error) {
@@ -44,8 +51,10 @@ app.post('/api/shops', (req, res) => {
   try {
     const shop = req.body;
     const stmt = db.prepare(`
-      INSERT INTO shops (id, name, company, isActive, address, phone, openTime, closeTime, requirements, specialRequests, assignedEmployees, rules)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO shops (id, name, company, isActive, address, phone, openTime, closeTime, 
+        requirements, specialRequests, fixedDaysOff, specialDayRules, assignedEmployees, rules,
+        minStaffAtOpen, minStaffMidday, minStaffAtClose, canBeSolo)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       shop.id,
@@ -54,12 +63,18 @@ app.post('/api/shops', (req, res) => {
       shop.isActive ? 1 : 0,
       shop.address || null,
       shop.phone || null,
-      shop.openTime || '09:00',
-      shop.closeTime || '18:00',
-      JSON.stringify(shop.requirements || {}),
+      shop.openTime || '06:00',
+      shop.closeTime || '21:00',
+      JSON.stringify(shop.requirements || []),
       JSON.stringify(shop.specialRequests || []),
+      JSON.stringify(shop.fixedDaysOff || []),
+      JSON.stringify(shop.specialDayRules || []),
       JSON.stringify(shop.assignedEmployees || []),
-      JSON.stringify(shop.rules || null)
+      JSON.stringify(shop.rules || null),
+      shop.minStaffAtOpen || 1,
+      shop.minStaffMidday || 1,
+      shop.minStaffAtClose || 1,
+      shop.canBeSolo ? 1 : 0
     );
     res.json({ success: true, shop });
   } catch (error) {
@@ -77,7 +92,8 @@ app.patch('/api/shops/:id', (req, res) => {
       UPDATE shops SET 
         name = ?, company = ?, isActive = ?, address = ?, phone = ?, 
         openTime = ?, closeTime = ?, requirements = ?, specialRequests = ?, 
-        assignedEmployees = ?, rules = ?
+        fixedDaysOff = ?, specialDayRules = ?, assignedEmployees = ?, rules = ?,
+        minStaffAtOpen = ?, minStaffMidday = ?, minStaffAtClose = ?, canBeSolo = ?
       WHERE id = ?
     `);
     stmt.run(
@@ -86,12 +102,18 @@ app.patch('/api/shops/:id', (req, res) => {
       shop.isActive ? 1 : 0,
       shop.address || null,
       shop.phone || null,
-      shop.openTime || '09:00',
-      shop.closeTime || '18:00',
-      JSON.stringify(shop.requirements || {}),
+      shop.openTime || '06:00',
+      shop.closeTime || '21:00',
+      JSON.stringify(shop.requirements || []),
       JSON.stringify(shop.specialRequests || []),
+      JSON.stringify(shop.fixedDaysOff || []),
+      JSON.stringify(shop.specialDayRules || []),
       JSON.stringify(shop.assignedEmployees || []),
       JSON.stringify(shop.rules || null),
+      shop.minStaffAtOpen || 1,
+      shop.minStaffMidday || 1,
+      shop.minStaffAtClose || 1,
+      shop.canBeSolo ? 1 : 0,
       id
     );
     res.json({ success: true });
@@ -101,7 +123,7 @@ app.patch('/api/shops/:id', (req, res) => {
   }
 });
 
-// Delete shop
+// Delete shop (no changes needed)
 app.delete('/api/shops/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -112,6 +134,7 @@ app.delete('/api/shops/:id', (req, res) => {
     res.status(500).json({ error: 'Failed to delete shop' });
   }
 });
+
 
 // ============== EMPLOYEES ==============
 
@@ -1104,6 +1127,8 @@ app.patch('/api/auth/user/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update user' });
   }
 });
+
+
 
 // Start server
 app.listen(PORT, () => {
