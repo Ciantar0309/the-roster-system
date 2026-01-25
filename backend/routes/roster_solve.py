@@ -13,10 +13,10 @@ ROUTES_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.dirname(ROUTES_DIR)
 SOLVER_DIR = os.path.join(BACKEND_DIR, 'solver')
 
-sys.path.insert(0, BACKEND_DIR)
+# Add solver directory to path so we can import roster_solver directly
 sys.path.insert(0, SOLVER_DIR)
 
-from solver.roster_solver import (
+from roster_solver import (
     RosterSolver,
     Employee,
     LeaveRequest,
@@ -28,10 +28,10 @@ from solver.roster_solver import (
     DAYS_OF_WEEK
 )
 
-roster_solve = Blueprint('roster_solve', __name__)
+roster_solve_bp = Blueprint('roster_solve', __name__)
 
 
-@roster_solve.route('/api/roster/solve', methods=['POST'])
+@roster_solve_bp.route('/api/roster/solve', methods=['POST'])
 def solve_roster():
     """
     POST /api/roster/solve
