@@ -2,182 +2,184 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 
-// Create database file in backend folder
 const dbPath = path.join(__dirname, '..', 'rosterpro.db');
 const db = new Database(dbPath);
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
-
-// Helper function to safely add columns (migrations)
-function addColumnIfNotExists(table: string, column: string, definition: string) {
-  try {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-    console.log(`  ✅ Added column: ${table}.${column}`);
-  } catch (e: any) {
-    // Column already exists - this is fine
-    if (!e.message.includes('duplicate column')) {
-      console.error(`  ⚠️ Error adding ${table}.${column}:`, e.message);
-    }
+// Helper to add column if it doesn't exist
+function addColumnIfNotExists(table: string, column: string, type: string, defaultValue?: string) {
+  const tableInfo = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  const columnExists = tableInfo.some(col => col.name === column);
+  
+  if (!columnExists) {
+    const defaultClause = defaultValue !== undefined ? ` DEFAULT ${defaultValue}` : '';
+    db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}${defaultClause}`).run();
+    console.log(`Added column ${column} to ${table}`);
   }
 }
 
-// Initialize tables
+// Initialize database
 export function initializeDatabase() {
-  console.log('🔧 Initializing database...');
-
-  // Shops table
+  // Create shops table
   db.exec(`
     CREATE TABLE IF NOT EXISTS shops (
-      id INTEGER PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      company TEXT NOT NULL,
-      isActive INTEGER DEFAULT 1,
       address TEXT,
       phone TEXT,
-      openTime TEXT DEFAULT '06:00',
-      closeTime TEXT DEFAULT '21:00',
-      requirements TEXT,
-      specialRequests TEXT,
-      fixedDaysOff TEXT,
-      specialDayRules TEXT,
-      assignedEmployees TEXT,
-      rules TEXT,
+      company TEXT DEFAULT 'CMZ',
+      openTime TEXT DEFAULT '06:30',
+      closeTime TEXT DEFAULT '21:30',
+      isActive INTEGER DEFAULT 1,
+      requirements TEXT DEFAULT '[]',
       minStaffAtOpen INTEGER DEFAULT 1,
-      minStaffMidday INTEGER DEFAULT 1,
+      minStaffMidday INTEGER DEFAULT 2,
       minStaffAtClose INTEGER DEFAULT 1,
-      canBeSolo INTEGER DEFAULT 0
+      canBeSolo INTEGER DEFAULT 0,
+      specialShifts TEXT DEFAULT '[]',
+      fixedDaysOff TEXT DEFAULT '[]',
+      specialDayRules TEXT DEFAULT '[]',
+      specialRequests TEXT DEFAULT '[]',
+      trimming TEXT DEFAULT '{"enabled":false,"trimAM":true,"trimPM":false,"minShiftHours":4,"trimFromStart":1,"trimFromEnd":2,"trimWhenMoreThan":2}',
+      sunday TEXT DEFAULT '{"closed":false,"maxStaff":null,"customHours":{"enabled":false,"openTime":"08:00","closeTime":"13:00"}}',
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
-  // Run migrations for shops table (in case columns don't exist)
-  console.log('📦 Running shop migrations...');
-  addColumnIfNotExists('shops', 'fixedDaysOff', 'TEXT');
-  addColumnIfNotExists('shops', 'specialDayRules', 'TEXT');
-  addColumnIfNotExists('shops', 'minStaffAtOpen', 'INTEGER DEFAULT 1');
-  addColumnIfNotExists('shops', 'minStaffMidday', 'INTEGER DEFAULT 1');
-  addColumnIfNotExists('shops', 'minStaffAtClose', 'INTEGER DEFAULT 1');
-  addColumnIfNotExists('shops', 'canBeSolo', 'INTEGER DEFAULT 0');
-
-  // Employees table
+  // Create employees table
   db.exec(`
     CREATE TABLE IF NOT EXISTS employees (
-      id INTEGER PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      email TEXT,
+      email TEXT UNIQUE,
       phone TEXT,
-      company TEXT NOT NULL,
+      company TEXT DEFAULT 'CMZ',
       employmentType TEXT DEFAULT 'full-time',
-      role TEXT DEFAULT 'sales',
+      role TEXT DEFAULT 'barista',
       weeklyHours INTEGER DEFAULT 40,
-      payScaleId INTEGER,
-      allowanceIds TEXT,
-      excludeFromRoster INTEGER DEFAULT 0,
-      hasSystemAccess INTEGER DEFAULT 0,
-      systemRole TEXT,
       primaryShopId INTEGER,
-      secondaryShopIds TEXT,
-      idNumber TEXT,
-      taxNumber TEXT,
-      ssnNumber TEXT,
-      tcnNumber TEXT,
-      tcnExpiry TEXT,
-      iban TEXT
+      secondaryShopIds TEXT DEFAULT '[]',
+      isActive INTEGER DEFAULT 1,
+      startDate TEXT,
+      profilePhoto TEXT,
+      payScaleId TEXT,
+      allowances TEXT DEFAULT '[]',
+      emergencyContact TEXT,
+      emergencyPhone TEXT,
+      notes TEXT,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (primaryShopId) REFERENCES shops(id)
     )
   `);
 
-  // Shifts table
+  // Create shifts table
   db.exec(`
     CREATE TABLE IF NOT EXISTS shifts (
-      id TEXT PRIMARY KEY,
-      date TEXT NOT NULL,
-      shopId INTEGER NOT NULL,
-      shopName TEXT,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       employeeId INTEGER NOT NULL,
-      employeeName TEXT,
+      shopId INTEGER NOT NULL,
+      date TEXT NOT NULL,
       startTime TEXT NOT NULL,
       endTime TEXT NOT NULL,
-      hours REAL,
-      shiftType TEXT,
-      company TEXT,
-      weekStart TEXT NOT NULL
+      shiftType TEXT DEFAULT 'AM',
+      status TEXT DEFAULT 'scheduled',
+      notes TEXT,
+      isTrimmed INTEGER DEFAULT 0,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (employeeId) REFERENCES employees(id),
+      FOREIGN KEY (shopId) REFERENCES shops(id)
     )
   `);
 
-  // Leave requests table
+  // Create leave_requests table
   db.exec(`
     CREATE TABLE IF NOT EXISTS leave_requests (
-      id TEXT PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       employeeId INTEGER NOT NULL,
-      type TEXT NOT NULL,
       startDate TEXT NOT NULL,
       endDate TEXT NOT NULL,
-      reason TEXT,
+      type TEXT DEFAULT 'annual',
       status TEXT DEFAULT 'pending',
-      submittedAt TEXT,
+      reason TEXT,
       reviewedBy INTEGER,
-      reviewedAt TEXT
+      reviewedAt TEXT,
+      reviewNotes TEXT,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (employeeId) REFERENCES employees(id),
+      FOREIGN KEY (reviewedBy) REFERENCES employees(id)
     )
   `);
 
-  // Shift swap requests table
+  // Create swap_requests table
   db.exec(`
     CREATE TABLE IF NOT EXISTS swap_requests (
-      id TEXT PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       requesterId INTEGER NOT NULL,
-      requesterShiftId TEXT,
-      targetEmployeeId INTEGER,
-      targetShiftId TEXT,
+      targetId INTEGER NOT NULL,
+      requesterShiftId INTEGER NOT NULL,
+      targetShiftId INTEGER NOT NULL,
       status TEXT DEFAULT 'pending',
-      createdAt TEXT,
-      reviewedBy INTEGER,
-      reviewedAt TEXT
+      reason TEXT,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (requesterId) REFERENCES employees(id),
+      FOREIGN KEY (targetId) REFERENCES employees(id),
+      FOREIGN KEY (requesterShiftId) REFERENCES shifts(id),
+      FOREIGN KEY (targetShiftId) REFERENCES shifts(id)
     )
   `);
 
-  // Profile update notifications table
+  // Create profile_updates table
   db.exec(`
     CREATE TABLE IF NOT EXISTS profile_updates (
-      id TEXT PRIMARY KEY,
-      employeeId INTEGER NOT NULL,
-      employeeName TEXT,
-      changes TEXT,
-      createdAt TEXT,
-      status TEXT DEFAULT 'pending'
-    )
-  `);
-
-  // Pay scales table
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS pay_scales (
-      id INTEGER PRIMARY KEY,
-      name TEXT NOT NULL,
-      hourlyRate REAL NOT NULL,
-      overtimeMultiplier REAL DEFAULT 1.5,
-      company TEXT
-    )
-  `);
-
-  // Users table for authentication
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      employeeId INTEGER,
-      role TEXT DEFAULT 'employee',
-      isActive INTEGER DEFAULT 1,
-      inviteToken TEXT,
-      inviteExpires TEXT,
+      employeeId INTEGER NOT NULL,
+      field TEXT NOT NULL,
+      oldValue TEXT,
+      newValue TEXT,
+      status TEXT DEFAULT 'pending',
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
-      lastLogin TEXT,
       FOREIGN KEY (employeeId) REFERENCES employees(id)
     )
   `);
 
-  console.log('✅ Users table ready');
-  console.log('✅ Database initialized at:', dbPath);
+  // Create pay_scales table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pay_scales (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      hourlyRate REAL NOT NULL,
+      overtimeMultiplier REAL DEFAULT 1.5,
+      weekendMultiplier REAL DEFAULT 1.25,
+      holidayMultiplier REAL DEFAULT 2.0
+    )
+  `);
+
+  // Create users table for authentication
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      passwordHash TEXT NOT NULL,
+      employeeId INTEGER,
+      role TEXT DEFAULT 'barista',
+      lastLogin TEXT,
+      createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (employeeId) REFERENCES employees(id)
+    )
+  `);
+
+  // Run migrations for new columns
+  addColumnIfNotExists('shops', 'specialShifts', 'TEXT', "'[]'");
+  addColumnIfNotExists('shops', 'fixedDaysOff', 'TEXT', "'[]'");
+  addColumnIfNotExists('shops', 'specialDayRules', 'TEXT', "'[]'");
+  addColumnIfNotExists('shops', 'specialRequests', 'TEXT', "'[]'");
+  addColumnIfNotExists('shops', 'trimming', 'TEXT', `'{"enabled":false,"trimAM":true,"trimPM":false,"minShiftHours":4,"trimFromStart":1,"trimFromEnd":2,"trimWhenMoreThan":2}'`);
+  addColumnIfNotExists('shops', 'sunday', 'TEXT', `'{"closed":false,"maxStaff":null,"customHours":{"enabled":false,"openTime":"08:00","closeTime":"13:00"}}'`);
+  addColumnIfNotExists('shifts', 'isTrimmed', 'INTEGER', '0');
+
+  console.log('Database initialized successfully');
 }
 
-// Export the database instance
 export default db;
