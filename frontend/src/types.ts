@@ -9,7 +9,7 @@ export type ShopCompany = 'CMZ' | 'CS'; // Shops can only be one company
 
 export type EmploymentType = 'full-time' | 'part-time' | 'student';
 
-export type EmployeeRole = 'barista' | 'supervisor' | 'manager' | 'admin';
+export type EmployeeRole = 'barista' | 'supervisor' | 'manager' | 'admin' | 'staff';
 
 export type ViewType =
   | 'dashboard'
@@ -135,18 +135,23 @@ export interface Employee {
   phone?: string;
   company: Company;
   employmentType: EmploymentType;
-  role: EmployeeRole;
+  role: EmployeeRole | string;
   weeklyHours: number;
-  primaryShopId: number | null;
-  secondaryShopIds: number[];
-  isActive: boolean;
+  primaryShopId?: number | null;
+  secondaryShopIds?: number[];
+  isActive?: boolean;
   startDate?: string;
   profilePhoto?: string;
   payScaleId?: string;
   allowances?: string[];
+  allowanceIds?: string[];
   emergencyContact?: string;
   emergencyPhone?: string;
   notes?: string;
+  // Legacy/App.tsx compatibility fields
+  excludeFromRoster?: boolean;
+  hasSystemAccess?: boolean;
+  systemRole?: string;
 }
 
 // ============================================
@@ -154,15 +159,15 @@ export interface Employee {
 // ============================================
 
 export interface ShopDayRequirement {
-  day: DayOfWeek;
+  day: DayOfWeek | string;
   amStaff: number;
   pmStaff: number;
   amStart?: string;
   amEnd?: string;
   pmStart?: string;
   pmEnd?: string;
-  allowFullDay: boolean;
-  isMandatory: boolean;
+  allowFullDay?: boolean;
+  isMandatory?: boolean;
 }
 
 export const DEFAULT_SHOP_REQUIREMENTS: ShopDayRequirement[] = DAYS_OF_WEEK.map(day => ({
@@ -183,11 +188,13 @@ export const DEFAULT_SHOP_REQUIREMENTS: ShopDayRequirement[] = DAYS_OF_WEEK.map(
 
 export interface SpecialShift {
   id: string;
-  dayOfWeek: DayOfWeek;
-  startTime: string;
-  endTime: string;
+  dayOfWeek?: DayOfWeek;
+  day?: string;
+  startTime?: string;
+  endTime?: string;
   employeeId?: number;
   notes?: string;
+  shifts?: Array<{ start: string; end: string }>;
 }
 
 export interface SpecialShiftRequest {
@@ -210,15 +217,17 @@ export interface SpecialShiftRequest {
 // ============================================
 
 export interface FixedDayOff {
-  employeeId: number;
+  employeeId?: number;
   employeeName?: string;
-  dayOfWeek: DayOfWeek;
+  dayOfWeek?: DayOfWeek;
   reason?: string;
+  person?: string;
+  day?: string;
 }
 
 export interface SpecialDayRule {
-  dayOfWeek: DayOfWeek;
-  rule: 'closed' | 'reduced-hours' | 'extra-staff';
+  dayOfWeek?: DayOfWeek;
+  rule?: 'closed' | 'reduced-hours' | 'extra-staff';
   customOpenTime?: string;
   customCloseTime?: string;
   staffMultiplier?: number;
@@ -230,16 +239,27 @@ export interface SpecialDayRule {
 // ============================================
 
 export interface ShopRules {
-  minStaffAtOpen: number;
-  minStaffMidday: number;
-  minStaffAtClose: number;
-  maxOvertimePerWeek: number;
-  allowSplitShifts: boolean;
+  minStaffAtOpen?: number;
+  minStaffMidday?: number;
+  minStaffAtClose?: number;
+  maxOvertimePerWeek?: number;
+  allowSplitShifts?: boolean;
   specialShifts?: SpecialShift[];
+  // Legacy compatibility
+  mandatory_days?: string[];
+  full_day_effect?: string;
+  sundayExactStaff?: number;
+  sundayMaxStaff?: number;
+  dayInDayOut?: boolean;
+  preferFullDays?: boolean;
+  fixed_days_off?: Array<{ person: string; day: string }>;
+  splitPreferred?: boolean;
+  fullDayOnlyDays?: string[];
+  sunday_closed?: boolean;
 }
 
 // ============================================
-// TRIMMING AND SUNDAY CONFIG (NEW)
+// TRIMMING AND SUNDAY CONFIG
 // ============================================
 
 export interface TrimmingConfig {
@@ -283,6 +303,17 @@ export const DEFAULT_SUNDAY_CONFIG: SundayConfig = {
 };
 
 // ============================================
+// SHOP ASSIGNED EMPLOYEE
+// ============================================
+
+export interface ShopAssignedEmployee {
+  employeeId: number;
+  isPrimary?: boolean;
+  id?: number;
+  name?: string;
+}
+
+// ============================================
 // SHOP
 // ============================================
 
@@ -291,21 +322,24 @@ export interface Shop {
   name: string;
   address?: string;
   phone?: string;
-  company: ShopCompany;
+  company: Company;
   openTime: string;
   closeTime: string;
   isActive: boolean;
-  requirements: ShopDayRequirement[];
-  minStaffAtOpen: number;
-  minStaffMidday: number;
-  minStaffAtClose: number;
-  canBeSolo: boolean;
-  specialShifts: SpecialShift[];
-  fixedDaysOff: FixedDayOff[];
-  specialDayRules: SpecialDayRule[];
-  assignedEmployees?: Employee[];
+  requirements?: ShopDayRequirement[];
+  minStaffAtOpen?: number;
+  minStaffMidday?: number;
+  minStaffAtClose?: number;
+  canBeSolo?: boolean;
+  specialShifts?: SpecialShift[];
+  fixedDaysOff?: FixedDayOff[];
+  specialDayRules?: SpecialDayRule[];
+  assignedEmployees?: ShopAssignedEmployee[] | Employee[];
   trimming?: TrimmingConfig;
   sunday?: SundayConfig;
+  // Legacy compatibility
+  specialRequests?: SpecialShift[];
+  rules?: ShopRules;
 }
 
 // ============================================
@@ -367,7 +401,8 @@ export interface CurrentUser {
   id: number;
   email: string;
   name: string;
-  role: EmployeeRole;
+  role: EmployeeRole | string;
+  company?: Company;
   employeeId?: number;
   shopId?: number;
 }
