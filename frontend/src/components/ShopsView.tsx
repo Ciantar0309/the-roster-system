@@ -1199,15 +1199,9 @@ const fetchShops = async () => {
 
   const handleSaveShop = async (shopData: Partial<Shop>) => {
   try {
-    console.log('=== SAVE SHOP START ===');
-    console.log('Shop data:', shopData);
-    
     const url = shopData.id
       ? `http://localhost:3001/api/shops/${shopData.id}`
       : 'http://localhost:3001/api/shops';
-    
-    console.log('URL:', url);
-    console.log('Method:', shopData.id ? 'PATCH' : 'POST');
 
     const response = await fetch(url, {
       method: shopData.id ? 'PATCH' : 'POST',
@@ -1215,29 +1209,16 @@ const fetchShops = async () => {
       body: JSON.stringify(shopData)
     });
 
-    console.log('Response status:', response.status);
-    console.log('Response ok:', response.ok);
+    if (!response.ok) throw new Error('Failed to save shop');
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Error response:', errorText);
-      throw new Error('Failed to save shop');
-    }
-
-    const result = await response.json();
-    console.log('Save result:', result);
-
-    console.log('Fetching shops now...');
-    await fetchShops();
+    // Refresh shops list
+    const shopsRes = await fetch('http://localhost:3001/api/shops');
+    const freshShops = await shopsRes.json();
+    setShops(freshShops);
     
-    console.log('Closing modals...');
     setEditingShop(null);
     setShowAddModal(false);
-    console.log('=== SAVE SHOP COMPLETE ===');
-    window.location.reload(); // Force page refresh
-
   } catch (err) {
-    console.error('=== SAVE SHOP ERROR ===', err);
     alert(err instanceof Error ? err.message : 'Failed to save shop');
   }
 };
@@ -1251,7 +1232,10 @@ const handleDeleteShop = async (shopId: number) => {
     });
 
     if (!response.ok) throw new Error('Failed to delete shop');
-    await fetchShops();
+    
+    const shopsRes = await fetch('http://localhost:3001/api/shops');
+    const freshShops = await shopsRes.json();
+    setShops(freshShops);
   } catch (err) {
     alert(err instanceof Error ? err.message : 'Failed to delete shop');
   }
@@ -1266,11 +1250,16 @@ const handleToggleActive = async (shop: Shop) => {
     });
 
     if (!response.ok) throw new Error('Failed to update shop');
-    await fetchShops();
+    
+    const shopsRes = await fetch('http://localhost:3001/api/shops');
+    const freshShops = await shopsRes.json();
+    setShops(freshShops);
   } catch (err) {
     alert(err instanceof Error ? err.message : 'Failed to update shop');
   }
 };
+
+
 
   // Filtered shops
   const filteredShops = useMemo(() => {

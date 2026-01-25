@@ -33,7 +33,9 @@ app.get('/api/shops', (req, res) => {
       specialDayRules: shop.specialDayRules ? JSON.parse(shop.specialDayRules) : [],
       assignedEmployees: shop.assignedEmployees ? JSON.parse(shop.assignedEmployees) : [],
       rules: shop.rules ? JSON.parse(shop.rules) : null,
-      // New staffing fields with defaults
+      specialShifts: shop.specialShifts ? JSON.parse(shop.specialShifts) : [],
+      trimming: shop.trimming ? JSON.parse(shop.trimming) : null,
+      sunday: shop.sunday ? JSON.parse(shop.sunday) : null,
       minStaffAtOpen: shop.minStaffAtOpen || 1,
       minStaffMidday: shop.minStaffMidday || 1,
       minStaffAtClose: shop.minStaffAtClose || 1,
@@ -51,20 +53,19 @@ app.post('/api/shops', (req, res) => {
   try {
     const shop = req.body;
     const stmt = db.prepare(`
-      INSERT INTO shops (id, name, company, isActive, address, phone, openTime, closeTime, 
+      INSERT INTO shops (name, company, isActive, address, phone, openTime, closeTime, 
         requirements, specialRequests, fixedDaysOff, specialDayRules, assignedEmployees, rules,
-        minStaffAtOpen, minStaffMidday, minStaffAtClose, canBeSolo)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        minStaffAtOpen, minStaffMidday, minStaffAtClose, canBeSolo, specialShifts, trimming, sunday)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    stmt.run(
-      shop.id,
+    const result = stmt.run(
       shop.name,
       shop.company,
       shop.isActive ? 1 : 0,
       shop.address || null,
       shop.phone || null,
-      shop.openTime || '06:00',
-      shop.closeTime || '21:00',
+      shop.openTime || '06:30',
+      shop.closeTime || '21:30',
       JSON.stringify(shop.requirements || []),
       JSON.stringify(shop.specialRequests || []),
       JSON.stringify(shop.fixedDaysOff || []),
@@ -74,16 +75,19 @@ app.post('/api/shops', (req, res) => {
       shop.minStaffAtOpen || 1,
       shop.minStaffMidday || 1,
       shop.minStaffAtClose || 1,
-      shop.canBeSolo ? 1 : 0
+      shop.canBeSolo ? 1 : 0,
+      JSON.stringify(shop.specialShifts || []),
+      JSON.stringify(shop.trimming || null),
+      JSON.stringify(shop.sunday || null)
     );
-    res.json({ success: true, shop });
+    res.json({ success: true, id: result.lastInsertRowid, shop });
   } catch (error) {
     console.error('Error creating shop:', error);
     res.status(500).json({ error: 'Failed to create shop' });
   }
 });
 
-// Update shop
+// Update shop (PATCH)
 app.patch('/api/shops/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -93,7 +97,8 @@ app.patch('/api/shops/:id', (req, res) => {
         name = ?, company = ?, isActive = ?, address = ?, phone = ?, 
         openTime = ?, closeTime = ?, requirements = ?, specialRequests = ?, 
         fixedDaysOff = ?, specialDayRules = ?, assignedEmployees = ?, rules = ?,
-        minStaffAtOpen = ?, minStaffMidday = ?, minStaffAtClose = ?, canBeSolo = ?
+        minStaffAtOpen = ?, minStaffMidday = ?, minStaffAtClose = ?, canBeSolo = ?,
+        specialShifts = ?, trimming = ?, sunday = ?
       WHERE id = ?
     `);
     stmt.run(
@@ -102,8 +107,8 @@ app.patch('/api/shops/:id', (req, res) => {
       shop.isActive ? 1 : 0,
       shop.address || null,
       shop.phone || null,
-      shop.openTime || '06:00',
-      shop.closeTime || '21:00',
+      shop.openTime || '06:30',
+      shop.closeTime || '21:30',
       JSON.stringify(shop.requirements || []),
       JSON.stringify(shop.specialRequests || []),
       JSON.stringify(shop.fixedDaysOff || []),
@@ -114,6 +119,9 @@ app.patch('/api/shops/:id', (req, res) => {
       shop.minStaffMidday || 1,
       shop.minStaffAtClose || 1,
       shop.canBeSolo ? 1 : 0,
+      JSON.stringify(shop.specialShifts || []),
+      JSON.stringify(shop.trimming || null),
+      JSON.stringify(shop.sunday || null),
       id
     );
     res.json({ success: true });
@@ -123,7 +131,7 @@ app.patch('/api/shops/:id', (req, res) => {
   }
 });
 
-// Also support PUT for updating shops
+// Update shop (PUT) - same as PATCH
 app.put('/api/shops/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -133,7 +141,8 @@ app.put('/api/shops/:id', (req, res) => {
         name = ?, company = ?, isActive = ?, address = ?, phone = ?, 
         openTime = ?, closeTime = ?, requirements = ?, specialRequests = ?, 
         fixedDaysOff = ?, specialDayRules = ?, assignedEmployees = ?, rules = ?,
-        minStaffAtOpen = ?, minStaffMidday = ?, minStaffAtClose = ?, canBeSolo = ?
+        minStaffAtOpen = ?, minStaffMidday = ?, minStaffAtClose = ?, canBeSolo = ?,
+        specialShifts = ?, trimming = ?, sunday = ?
       WHERE id = ?
     `);
     stmt.run(
@@ -142,8 +151,8 @@ app.put('/api/shops/:id', (req, res) => {
       shop.isActive ? 1 : 0,
       shop.address || null,
       shop.phone || null,
-      shop.openTime || '06:00',
-      shop.closeTime || '21:00',
+      shop.openTime || '06:30',
+      shop.closeTime || '21:30',
       JSON.stringify(shop.requirements || []),
       JSON.stringify(shop.specialRequests || []),
       JSON.stringify(shop.fixedDaysOff || []),
@@ -154,6 +163,9 @@ app.put('/api/shops/:id', (req, res) => {
       shop.minStaffMidday || 1,
       shop.minStaffAtClose || 1,
       shop.canBeSolo ? 1 : 0,
+      JSON.stringify(shop.specialShifts || []),
+      JSON.stringify(shop.trimming || null),
+      JSON.stringify(shop.sunday || null),
       id
     );
     res.json({ success: true });
@@ -163,8 +175,7 @@ app.put('/api/shops/:id', (req, res) => {
   }
 });
 
-
-// Delete shop (no changes needed)
+// Delete shop
 app.delete('/api/shops/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -175,6 +186,7 @@ app.delete('/api/shops/:id', (req, res) => {
     res.status(500).json({ error: 'Failed to delete shop' });
   }
 });
+
 
 
 // ============== EMPLOYEES ==============
