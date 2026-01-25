@@ -30,7 +30,8 @@ import type {
   SpecialDayRule,
   TrimmingConfig,
   SundayConfig,
-  DayOfWeek
+  DayOfWeek,
+  Employee
 } from '../types';
 import {
   DEFAULT_SHOP_REQUIREMENTS,
