@@ -123,7 +123,7 @@ app.patch('/api/shops/:id', (req, res) => {
   }
 });
 
-// Also support PUT for updating shops (alias for PATCH)
+// Also support PUT for updating shops
 app.put('/api/shops/:id', (req, res) => {
   try {
     const { id } = req.params;
@@ -162,6 +162,7 @@ app.put('/api/shops/:id', (req, res) => {
     res.status(500).json({ error: 'Failed to update shop' });
   }
 });
+
 
 // Delete shop (no changes needed)
 app.delete('/api/shops/:id', (req, res) => {

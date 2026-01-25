@@ -1177,71 +1177,100 @@ const ShopsView: React.FC<ShopsViewProps> = () => {
     fetchShops();
   }, []);
 
-  const fetchShops = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('http://localhost:3001/api/shops');
-      if (!response.ok) throw new Error('Failed to fetch shops');
-      const data = await response.json();
-      setShops(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
+const fetchShops = async () => {
+  try {
+    setLoading(true);
+    const response = await fetch('http://localhost:3001/api/shops', {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
+    if (!response.ok) throw new Error('Failed to fetch shops');
+    const data = await response.json();
+    setShops(data);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Failed to load shops');
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const handleSaveShop = async (shopData: Partial<Shop>) => {
-    try {
-      const url = shopData.id
-        ? `http://localhost:3001/api/shops/${shopData.id}`
-        : 'http://localhost:3001/api/shops';
+  try {
+    console.log('=== SAVE SHOP START ===');
+    console.log('Shop data:', shopData);
+    
+    const url = shopData.id
+      ? `http://localhost:3001/api/shops/${shopData.id}`
+      : 'http://localhost:3001/api/shops';
+    
+    console.log('URL:', url);
+    console.log('Method:', shopData.id ? 'PATCH' : 'POST');
 
-      const response = await fetch(url, {
-        method: shopData.id ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(shopData)
-      });
+    const response = await fetch(url, {
+      method: shopData.id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(shopData)
+    });
 
-      if (!response.ok) throw new Error('Failed to save shop');
+    console.log('Response status:', response.status);
+    console.log('Response ok:', response.ok);
 
-      await fetchShops();
-      setEditingShop(null);
-      setShowAddModal(false);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to save shop');
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      throw new Error('Failed to save shop');
     }
-  };
 
-  const handleDeleteShop = async (shopId: number) => {
-    if (!confirm('Are you sure you want to delete this shop?')) return;
+    const result = await response.json();
+    console.log('Save result:', result);
 
-    try {
-      const response = await fetch(`http://localhost:3001/api/shops/${shopId}`, {
-        method: 'DELETE'
-      });
+    console.log('Fetching shops now...');
+    await fetchShops();
+    
+    console.log('Closing modals...');
+    setEditingShop(null);
+    setShowAddModal(false);
+    console.log('=== SAVE SHOP COMPLETE ===');
+    window.location.reload(); // Force page refresh
 
-      if (!response.ok) throw new Error('Failed to delete shop');
-      await fetchShops();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete shop');
-    }
-  };
+  } catch (err) {
+    console.error('=== SAVE SHOP ERROR ===', err);
+    alert(err instanceof Error ? err.message : 'Failed to save shop');
+  }
+};
 
-  const handleToggleActive = async (shop: Shop) => {
-    try {
-      const response = await fetch(`http://localhost:3001/api/shops/${shop.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...shop, isActive: !shop.isActive })
-      });
+const handleDeleteShop = async (shopId: number) => {
+  if (!confirm('Are you sure you want to delete this shop?')) return;
 
-      if (!response.ok) throw new Error('Failed to update shop');
-      await fetchShops();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update shop');
-    }
-  };
+  try {
+    const response = await fetch(`http://localhost:3001/api/shops/${shopId}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) throw new Error('Failed to delete shop');
+    await fetchShops();
+  } catch (err) {
+    alert(err instanceof Error ? err.message : 'Failed to delete shop');
+  }
+};
+
+const handleToggleActive = async (shop: Shop) => {
+  try {
+    const response = await fetch(`http://localhost:3001/api/shops/${shop.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...shop, isActive: !shop.isActive })
+    });
+
+    if (!response.ok) throw new Error('Failed to update shop');
+    await fetchShops();
+  } catch (err) {
+    alert(err instanceof Error ? err.message : 'Failed to update shop');
+  }
+};
 
   // Filtered shops
   const filteredShops = useMemo(() => {
