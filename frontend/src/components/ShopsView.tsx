@@ -41,6 +41,10 @@ import {
 
 interface ShopsViewProps {
   onNavigate?: (view: string) => void;
+  shops?: Shop[];
+  setShops?: React.Dispatch<React.SetStateAction<Shop[]>>;
+  employees?: Employee[];
+  setEmployees?: React.Dispatch<React.SetStateAction<Employee[]>>;
 }
 
 // Shop Form Modal Component
@@ -98,7 +102,7 @@ const ShopFormModal: React.FC<{
         name: shop.name || '',
         address: shop.address || '',
         phone: shop.phone || '',
-        company: shop.company || 'CMZ',
+        company: (shop.company === 'Both' ? 'CMZ' : shop.company) || 'CMZ',
         openTime: shop.openTime || '06:30',
         closeTime: shop.closeTime || '21:30',
         isActive: shop.isActive !== false,

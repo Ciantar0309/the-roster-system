@@ -5,7 +5,7 @@
 // ============================================
 
 export type Company = 'CMZ' | 'CS' | 'Both';
-export type ShopCompany = 'CMZ' | 'CS'; // Shops can only be one company
+export type ShopCompany = 'CMZ' | 'CS' | 'Both'; // Allow 'Both' for compatibility
 
 export type EmploymentType = 'full-time' | 'part-time' | 'student';
 
@@ -63,18 +63,10 @@ export const EMPLOYEE_NAVIGATION: NavigationItem[] = [
 // ============================================
 
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
-
-// Short day format for App.tsx compatibility
 export type DayOfWeekShort = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
 
 export const DAYS_OF_WEEK: DayOfWeek[] = [
-  'monday',
-  'tuesday',
-  'wednesday',
-  'thursday',
-  'friday',
-  'saturday',
-  'sunday'
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
 ];
 
 export const DAYS_OF_WEEK_SHORT: DayOfWeekShort[] = [
@@ -82,30 +74,18 @@ export const DAYS_OF_WEEK_SHORT: DayOfWeekShort[] = [
 ];
 
 export const DAY_SHORT_TO_FULL: Record<string, DayOfWeek> = {
-  mon: 'monday',
-  Mon: 'monday',
-  tue: 'tuesday',
-  Tue: 'tuesday',
-  wed: 'wednesday',
-  Wed: 'wednesday',
-  thu: 'thursday',
-  Thu: 'thursday',
-  fri: 'friday',
-  Fri: 'friday',
-  sat: 'saturday',
-  Sat: 'saturday',
-  sun: 'sunday',
-  Sun: 'sunday'
+  mon: 'monday', Mon: 'monday',
+  tue: 'tuesday', Tue: 'tuesday',
+  wed: 'wednesday', Wed: 'wednesday',
+  thu: 'thursday', Thu: 'thursday',
+  fri: 'friday', Fri: 'friday',
+  sat: 'saturday', Sat: 'saturday',
+  sun: 'sunday', Sun: 'sunday'
 };
 
 export const DAY_FULL_TO_SHORT: Record<DayOfWeek, string> = {
-  monday: 'Mon',
-  tuesday: 'Tue',
-  wednesday: 'Wed',
-  thursday: 'Thu',
-  friday: 'Fri',
-  saturday: 'Sat',
-  sunday: 'Sun'
+  monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu',
+  friday: 'Fri', saturday: 'Sat', sunday: 'Sun'
 };
 
 // ============================================
@@ -118,22 +98,23 @@ export interface PayScale {
   grade?: string;
   hourlyRate: number;
   overtimeMultiplier: number;
+  overtimeRate?: number;
   weekendMultiplier: number;
   holidayMultiplier: number;
 }
 
 export const DEFAULT_PAY_SCALES: PayScale[] = [
-  { id: 'standard', name: 'Standard', grade: 'A', hourlyRate: 12.5, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
-  { id: 'senior', name: 'Senior', grade: 'B', hourlyRate: 15.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
-  { id: 'supervisor', name: 'Supervisor', grade: 'C', hourlyRate: 18.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
-  { id: 'manager', name: 'Manager', grade: 'D', hourlyRate: 22.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 }
+  { id: 'standard', name: 'Standard', grade: 'A', hourlyRate: 12.5, overtimeMultiplier: 1.5, overtimeRate: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
+  { id: 'senior', name: 'Senior', grade: 'B', hourlyRate: 15.0, overtimeMultiplier: 1.5, overtimeRate: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
+  { id: 'supervisor', name: 'Supervisor', grade: 'C', hourlyRate: 18.0, overtimeMultiplier: 1.5, overtimeRate: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
+  { id: 'manager', name: 'Manager', grade: 'D', hourlyRate: 22.0, overtimeMultiplier: 1.5, overtimeRate: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 }
 ];
 
 export interface Allowance {
   id: string;
   name: string;
   amount: number;
-  value?: number; // Alias for amount (legacy compatibility)
+  value?: number;
   description?: string;
   type: 'fixed' | 'percentage' | 'per-hour' | 'hourly';
 }
@@ -170,11 +151,9 @@ export interface Employee {
   emergencyContact?: string;
   emergencyPhone?: string;
   notes?: string;
-  // Legacy/App.tsx compatibility fields
   excludeFromRoster?: boolean;
   hasSystemAccess?: boolean;
   systemRole?: string;
-  // Additional optional fields
   idNumber?: string;
   taxNumber?: string;
   ssnNumber?: string;
@@ -184,22 +163,29 @@ export interface Employee {
 }
 
 // ============================================
-// SHOP REQUIREMENTS AND SCHEDULING
+// SHOP REQUIREMENTS
 // ============================================
 
 export interface ShopDayRequirement {
-  day: DayOfWeek | DayOfWeekShort | string;
-  amStaff: number;
-  pmStaff: number;
+  day?: DayOfWeek | DayOfWeekShort | string;
+  amStaff?: number;
+  pmStaff?: number;
   amStart?: string;
   amEnd?: string;
   pmStart?: string;
   pmEnd?: string;
   allowFullDay?: boolean;
   isMandatory?: boolean;
+  // Legacy indexed format
+  Mon?: number;
+  Tue?: number;
+  Wed?: number;
+  Thu?: number;
+  Fri?: number;
+  Sat?: number;
+  Sun?: number;
 }
 
-// Alias for backwards compatibility
 export type ShopReq = ShopDayRequirement;
 
 export const DEFAULT_SHOP_REQUIREMENTS: ShopDayRequirement[] = DAYS_OF_WEEK.map(day => ({
@@ -215,7 +201,7 @@ export const DEFAULT_SHOP_REQUIREMENTS: ShopDayRequirement[] = DAYS_OF_WEEK.map(
 }));
 
 // ============================================
-// SPECIAL SHIFTS AND REQUESTS
+// SPECIAL SHIFTS
 // ============================================
 
 export interface SpecialShift {
@@ -277,7 +263,6 @@ export interface ShopRules {
   maxOvertimePerWeek?: number;
   allowSplitShifts?: boolean;
   specialShifts?: SpecialShift[];
-  // Legacy compatibility
   mandatory_days?: string[];
   full_day_effect?: string;
   sundayExactStaff?: number;
@@ -327,15 +312,11 @@ export interface SundayConfig {
 export const DEFAULT_SUNDAY_CONFIG: SundayConfig = {
   closed: false,
   maxStaff: null,
-  customHours: {
-    enabled: false,
-    openTime: '08:00',
-    closeTime: '13:00'
-  }
+  customHours: { enabled: false, openTime: '08:00', closeTime: '13:00' }
 };
 
 // ============================================
-// SHOP ASSIGNED EMPLOYEE
+// SHOP
 // ============================================
 
 export interface ShopAssignedEmployee {
@@ -344,10 +325,6 @@ export interface ShopAssignedEmployee {
   id?: number;
   name?: string;
 }
-
-// ============================================
-// SHOP
-// ============================================
 
 export interface Shop {
   id: number;
@@ -369,7 +346,6 @@ export interface Shop {
   assignedEmployees?: ShopAssignedEmployee[] | Employee[] | Array<{ employeeId: number; isPrimary?: boolean }>;
   trimming?: TrimmingConfig;
   sunday?: SundayConfig;
-  // Legacy compatibility
   specialRequests?: SpecialShift[];
   rules?: ShopRules;
 }
@@ -378,8 +354,10 @@ export interface Shop {
 // SHIFT
 // ============================================
 
+export type ShiftType = 'AM' | 'PM' | 'FULL' | 'CUSTOM';
+
 export interface Shift {
-  id: number;
+  id: number | string;
   employeeId: number;
   employeeName?: string;
   shopId: number;
@@ -388,35 +366,31 @@ export interface Shift {
   startTime: string;
   endTime: string;
   hours?: number;
-  shiftType: 'AM' | 'PM' | 'FULL';
+  shiftType: ShiftType;
   status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
   notes?: string;
   isTrimmed?: boolean;
   company?: Company;
 }
 
-// BackendShift supports BOTH snake_case (from backend) and camelCase (frontend)
 export interface BackendShift {
-  id?: number;
-  // Snake case (from Python backend)
+  id?: number | string;
   employee_id?: number;
   shop_id?: number;
   start_time?: string;
   end_time?: string;
-  shift_type?: 'AM' | 'PM' | 'FULL';
+  shift_type?: ShiftType;
   is_trimmed?: boolean;
   employee_name?: string;
   shop_name?: string;
-  // Camel case (for frontend use)
   employeeId?: number;
   shopId?: number;
   startTime?: string;
   endTime?: string;
-  shiftType?: 'AM' | 'PM' | 'FULL';
+  shiftType?: ShiftType;
   isTrimmed?: boolean;
   employeeName?: string;
   shopName?: string;
-  // Common fields
   date: string;
   hours?: number;
   status?: string;
@@ -424,7 +398,6 @@ export interface BackendShift {
   company?: Company;
 }
 
-// Helper to convert BackendShift to frontend Shift
 export function normalizeShift(bs: BackendShift): Shift {
   return {
     id: bs.id ?? 0,
@@ -449,14 +422,14 @@ export function normalizeShift(bs: BackendShift): Shift {
 // ============================================
 
 export interface ShiftSwapRequest {
-  id: number;
+  id: number | string;
   requesterId: number;
   requesterName?: string;
   targetId?: number;
-  targetEmployeeId?: number; // Alias
+  targetEmployeeId?: number;
   targetName?: string;
-  requesterShiftId: number;
-  targetShiftId?: number;
+  requesterShiftId: number | string;
+  targetShiftId?: number | string;
   requesterShiftDate?: string;
   targetShiftDate?: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -483,7 +456,7 @@ export interface CurrentUser {
 // ============================================
 
 export interface LeaveRequest {
-  id: number;
+  id: number | string;
   employeeId: number;
   employeeName?: string;
   startDate: string;
@@ -492,18 +465,18 @@ export interface LeaveRequest {
   status: 'pending' | 'approved' | 'rejected';
   reason?: string;
   createdAt?: string;
-  submittedAt?: string; // Alias for createdAt
+  submittedAt?: string;
   reviewedBy?: number;
   reviewedAt?: string;
   reviewNotes?: string;
 }
 
 // ============================================
-// PROFILE AND NOTIFICATIONS
+// PROFILE NOTIFICATIONS
 // ============================================
 
 export interface ProfileUpdateNotification {
-  id: number;
+  id: number | string;
   employeeId: number;
   employeeName: string;
   field: string;
@@ -545,4 +518,16 @@ export interface PartTimerAvailability {
       end?: string;
     };
   };
+}
+
+// ============================================
+// COMPONENT PROPS
+// ============================================
+
+export interface ShopsViewProps {
+  onNavigate?: (view: string) => void;
+  shops?: Shop[];
+  setShops?: React.Dispatch<React.SetStateAction<Shop[]>>;
+  employees?: Employee[];
+  setEmployees?: React.Dispatch<React.SetStateAction<Employee[]>>;
 }
