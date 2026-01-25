@@ -123,6 +123,46 @@ app.patch('/api/shops/:id', (req, res) => {
   }
 });
 
+// Also support PUT for updating shops (alias for PATCH)
+app.put('/api/shops/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const shop = req.body;
+    const stmt = db.prepare(`
+      UPDATE shops SET 
+        name = ?, company = ?, isActive = ?, address = ?, phone = ?, 
+        openTime = ?, closeTime = ?, requirements = ?, specialRequests = ?, 
+        fixedDaysOff = ?, specialDayRules = ?, assignedEmployees = ?, rules = ?,
+        minStaffAtOpen = ?, minStaffMidday = ?, minStaffAtClose = ?, canBeSolo = ?
+      WHERE id = ?
+    `);
+    stmt.run(
+      shop.name,
+      shop.company,
+      shop.isActive ? 1 : 0,
+      shop.address || null,
+      shop.phone || null,
+      shop.openTime || '06:00',
+      shop.closeTime || '21:00',
+      JSON.stringify(shop.requirements || []),
+      JSON.stringify(shop.specialRequests || []),
+      JSON.stringify(shop.fixedDaysOff || []),
+      JSON.stringify(shop.specialDayRules || []),
+      JSON.stringify(shop.assignedEmployees || []),
+      JSON.stringify(shop.rules || null),
+      shop.minStaffAtOpen || 1,
+      shop.minStaffMidday || 1,
+      shop.minStaffAtClose || 1,
+      shop.canBeSolo ? 1 : 0,
+      id
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating shop:', error);
+    res.status(500).json({ error: 'Failed to update shop' });
+  }
+});
+
 // Delete shop (no changes needed)
 app.delete('/api/shops/:id', (req, res) => {
   try {

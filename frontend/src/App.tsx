@@ -1789,6 +1789,11 @@ function RosterView({ shops, employees, shifts, setShifts, leaveRequests }: Rost
         <div className="space-y-4">
           <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-700 text-sm">This will remove all shifts for the selected shops for the current week.</p>
+            <div className="flex gap-2">
+  <button type="button" onClick={() => setSelectedShopsForAction(filteredShops.map(s => s.id))} className="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200">Select All</button>
+  <button type="button" onClick={() => setSelectedShopsForAction([])} className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200">Clear All</button>
+</div>
+
           </div>
           <div className="max-h-64 overflow-y-auto border rounded-lg divide-y">
             {filteredShops.map(shop => {

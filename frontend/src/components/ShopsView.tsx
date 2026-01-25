@@ -68,7 +68,6 @@ const ShopFormModal: React.FC<{
     isActive: boolean;
     requirements: ShopDayRequirement[];
     minStaffAtOpen: number;
-    minStaffMidday: number;
     minStaffAtClose: number;
     canBeSolo: boolean;
     specialShifts: SpecialShift[];
@@ -86,7 +85,6 @@ const ShopFormModal: React.FC<{
     isActive: true,
     requirements: JSON.parse(JSON.stringify(DEFAULT_SHOP_REQUIREMENTS)),
     minStaffAtOpen: 1,
-    minStaffMidday: 2,
     minStaffAtClose: 1,
     canBeSolo: false,
     specialShifts: [],
@@ -97,31 +95,31 @@ const ShopFormModal: React.FC<{
   });
 
   // Load shop data when editing
-  useEffect(() => {
-    if (shop) {
-      setFormData({
-        name: shop.name || '',
-        address: shop.address || '',
-        phone: shop.phone || '',
-        company: (shop.company === 'Both' ? 'CMZ' : shop.company) || 'CMZ',
-        openTime: shop.openTime || '06:30',
-        closeTime: shop.closeTime || '21:30',
-        isActive: shop.isActive !== false,
-        requirements: shop.requirements && shop.requirements.length > 0
-          ? shop.requirements
-          : JSON.parse(JSON.stringify(DEFAULT_SHOP_REQUIREMENTS)),
-        minStaffAtOpen: shop.minStaffAtOpen ?? 1,
-        minStaffMidday: shop.minStaffMidday ?? 2,
-        minStaffAtClose: shop.minStaffAtClose ?? 1,
-        canBeSolo: shop.canBeSolo ?? false,
-        specialShifts: shop.specialShifts || [],
-        fixedDaysOff: shop.fixedDaysOff || [],
-        specialDayRules: shop.specialDayRules || [],
-        trimming: shop.trimming ? { ...DEFAULT_TRIMMING_CONFIG, ...shop.trimming } : { ...DEFAULT_TRIMMING_CONFIG },
-        sunday: shop.sunday ? { ...DEFAULT_SUNDAY_CONFIG, ...shop.sunday } : JSON.parse(JSON.stringify(DEFAULT_SUNDAY_CONFIG))
-      });
-    }
-  }, [shop]);
+useEffect(() => {
+  if (shop) {
+    setFormData({
+      name: shop.name || '',
+      address: shop.address || '',
+      phone: shop.phone || '',
+      company: (shop.company === 'Both' ? 'CMZ' : shop.company) || 'CMZ',
+      openTime: shop.openTime || '06:30',
+      closeTime: shop.closeTime || '21:30',
+      isActive: shop.isActive !== false,
+      requirements: Array.isArray(shop.requirements) && shop.requirements.length > 0
+        ? shop.requirements
+        : JSON.parse(JSON.stringify(DEFAULT_SHOP_REQUIREMENTS)),
+      minStaffAtOpen: shop.minStaffAtOpen ?? 1,
+      minStaffAtClose: shop.minStaffAtClose ?? 1,
+      canBeSolo: shop.canBeSolo ?? false,
+      specialShifts: Array.isArray(shop.specialShifts) ? shop.specialShifts : [],
+      fixedDaysOff: Array.isArray(shop.fixedDaysOff) ? shop.fixedDaysOff : [],
+      specialDayRules: Array.isArray(shop.specialDayRules) ? shop.specialDayRules : [],
+      trimming: shop.trimming ? { ...DEFAULT_TRIMMING_CONFIG, ...shop.trimming } : { ...DEFAULT_TRIMMING_CONFIG },
+      sunday: shop.sunday ? { ...DEFAULT_SUNDAY_CONFIG, ...shop.sunday } : JSON.parse(JSON.stringify(DEFAULT_SUNDAY_CONFIG))
+    });
+  }
+}, [shop]);
+
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -400,9 +398,6 @@ const ShopFormModal: React.FC<{
                         }`}
                       >
                         <div className="font-medium">{company}</div>
-                        <div className="text-xs opacity-75">
-                          {company === 'CMZ' ? 'Caffe Mazzo' : 'Coffee & Shots'}
-                        </div>
                       </button>
                     ))}
                   </div>
@@ -610,7 +605,7 @@ const ShopFormModal: React.FC<{
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Minimum Staff Levels
                   </label>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">At Opening</label>
                       <input
@@ -619,17 +614,6 @@ const ShopFormModal: React.FC<{
                         max="5"
                         value={formData.minStaffAtOpen}
                         onChange={e => setFormData({ ...formData, minStaffAtOpen: parseInt(e.target.value) || 1 })}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">At Midday</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="5"
-                        value={formData.minStaffMidday}
-                        onChange={e => setFormData({ ...formData, minStaffMidday: parseInt(e.target.value) || 1 })}
                         className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                       />
                     </div>
@@ -648,6 +632,8 @@ const ShopFormModal: React.FC<{
                 </div>
               </div>
             )}
+
+            {/* Special Tab */}
 
             {/* Special Tab */}
             {activeTab === 'special' && (
@@ -1319,29 +1305,30 @@ const ShopsView: React.FC<ShopsViewProps> = () => {
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-          <div className="text-sm text-gray-500">Total Shops</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-          <div className="text-sm text-gray-500">Active</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-gray-400">{stats.inactive}</div>
-          <div className="text-sm text-gray-500">Inactive</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-blue-600">{stats.cmz}</div>
-          <div className="text-sm text-gray-500">Caffe Mazzo</div>
-        </div>
-        <div className="bg-white rounded-xl p-4 border border-gray-200">
-          <div className="text-2xl font-bold text-emerald-600">{stats.cs}</div>
-          <div className="text-sm text-gray-500">Coffee & Shots</div>
-        </div>
-      </div>
+     {/* Stats Cards */}
+<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+  <div className="bg-gradient-to-br from-slate-500 to-slate-600 rounded-xl p-4 text-white">
+    <div className="text-2xl font-bold">{stats.total}</div>
+    <div className="text-sm opacity-80">Total Shops</div>
+  </div>
+  <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
+    <div className="text-2xl font-bold">{stats.active}</div>
+    <div className="text-sm opacity-80">Active</div>
+  </div>
+  <div className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-4 text-white">
+    <div className="text-2xl font-bold">{stats.inactive}</div>
+    <div className="text-sm opacity-80">Inactive</div>
+  </div>
+  <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+    <div className="text-2xl font-bold">{stats.cmz}</div>
+    <div className="text-sm opacity-80">CMZ</div>
+  </div>
+  <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-4 text-white">
+    <div className="text-2xl font-bold">{stats.cs}</div>
+    <div className="text-sm opacity-80">CS</div>
+  </div>
+</div>
+
 
       {/* Filters */}
       <div className="flex flex-wrap gap-4">
@@ -1361,8 +1348,8 @@ const ShopsView: React.FC<ShopsViewProps> = () => {
           className="px-4 py-2 border border-gray-200 rounded-lg"
         >
           <option value="all">All Companies</option>
-          <option value="CMZ">Caffe Mazzo</option>
-          <option value="CS">Coffee & Shots</option>
+          <option value="CMZ">CMZ</option>
+          <option value="CS">CS</option>
         </select>
         <select
           value={statusFilter}
@@ -1380,9 +1367,12 @@ const ShopsView: React.FC<ShopsViewProps> = () => {
         {filteredShops.map(shop => (
           <div
             key={shop.id}
-            className={`bg-white rounded-xl border ${
-              shop.isActive ? 'border-gray-200' : 'border-gray-200 opacity-60'
-            } overflow-hidden hover:shadow-lg transition-shadow`}
+            className={`bg-white rounded-xl border-l-4 ${
+  shop.company === 'CMZ' 
+    ? 'border-l-blue-500 border-gray-200' 
+    : 'border-l-emerald-500 border-gray-200'
+} ${!shop.isActive ? 'opacity-60' : ''} overflow-hidden hover:shadow-lg transition-shadow`}
+
           >
             {/* Card Header */}
             <div className="p-4 border-b border-gray-100">
@@ -1402,7 +1392,7 @@ const ShopsView: React.FC<ShopsViewProps> = () => {
                         ? 'bg-blue-100 text-blue-700'
                         : 'bg-emerald-100 text-emerald-700'
                     }`}>
-                      {shop.company === 'CMZ' ? 'Caffe Mazzo' : 'Coffee & Shots'}
+                      {shop.company}
                     </span>
                   </div>
                 </div>
