@@ -9,7 +9,8 @@ export type ShopCompany = 'CMZ' | 'CS'; // Shops can only be one company
 
 export type EmploymentType = 'full-time' | 'part-time' | 'student';
 
-export type EmployeeRole = 'barista' | 'supervisor' | 'manager' | 'admin' | 'staff';
+// REMOVED 'barista' as requested
+export type EmployeeRole = 'supervisor' | 'manager' | 'admin' | 'staff';
 
 export type ViewType =
   | 'dashboard'
@@ -23,7 +24,11 @@ export type ViewType =
   | 'profile'
   | 'my-roster'
   | 'my-leave'
-  | 'my-swaps';
+  | 'my-swaps'
+  | 'portal'
+  | 'payscales'
+  | 'overtime'
+  | 'users';
 
 // ============================================
 // NAVIGATION
@@ -59,6 +64,9 @@ export const EMPLOYEE_NAVIGATION: NavigationItem[] = [
 
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 
+// Short day format for App.tsx compatibility
+export type DayOfWeekShort = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
+
 export const DAYS_OF_WEEK: DayOfWeek[] = [
   'monday',
   'tuesday',
@@ -69,14 +77,25 @@ export const DAYS_OF_WEEK: DayOfWeek[] = [
   'sunday'
 ];
 
+export const DAYS_OF_WEEK_SHORT: DayOfWeekShort[] = [
+  'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+];
+
 export const DAY_SHORT_TO_FULL: Record<string, DayOfWeek> = {
   mon: 'monday',
+  Mon: 'monday',
   tue: 'tuesday',
+  Tue: 'tuesday',
   wed: 'wednesday',
+  Wed: 'wednesday',
   thu: 'thursday',
+  Thu: 'thursday',
   fri: 'friday',
+  Fri: 'friday',
   sat: 'saturday',
-  sun: 'sunday'
+  Sat: 'saturday',
+  sun: 'sunday',
+  Sun: 'sunday'
 };
 
 export const DAY_FULL_TO_SHORT: Record<DayOfWeek, string> = {
@@ -96,6 +115,7 @@ export const DAY_FULL_TO_SHORT: Record<DayOfWeek, string> = {
 export interface PayScale {
   id: string;
   name: string;
+  grade?: string;
   hourlyRate: number;
   overtimeMultiplier: number;
   weekendMultiplier: number;
@@ -103,25 +123,27 @@ export interface PayScale {
 }
 
 export const DEFAULT_PAY_SCALES: PayScale[] = [
-  { id: 'standard', name: 'Standard', hourlyRate: 12.5, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
-  { id: 'senior', name: 'Senior', hourlyRate: 15.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
-  { id: 'supervisor', name: 'Supervisor', hourlyRate: 18.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
-  { id: 'manager', name: 'Manager', hourlyRate: 22.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 }
+  { id: 'standard', name: 'Standard', grade: 'A', hourlyRate: 12.5, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
+  { id: 'senior', name: 'Senior', grade: 'B', hourlyRate: 15.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
+  { id: 'supervisor', name: 'Supervisor', grade: 'C', hourlyRate: 18.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 },
+  { id: 'manager', name: 'Manager', grade: 'D', hourlyRate: 22.0, overtimeMultiplier: 1.5, weekendMultiplier: 1.25, holidayMultiplier: 2.0 }
 ];
 
 export interface Allowance {
   id: string;
   name: string;
   amount: number;
-  type: 'fixed' | 'percentage' | 'per-hour';
+  value?: number; // Alias for amount (legacy compatibility)
+  description?: string;
+  type: 'fixed' | 'percentage' | 'per-hour' | 'hourly';
 }
 
 export const DEFAULT_ALLOWANCES: Allowance[] = [
-  { id: 'transport', name: 'Transport', amount: 50, type: 'fixed' },
-  { id: 'meal', name: 'Meal', amount: 8, type: 'fixed' },
-  { id: 'phone', name: 'Phone', amount: 25, type: 'fixed' },
-  { id: 'performance', name: 'Performance', amount: 5, type: 'percentage' },
-  { id: 'night-shift', name: 'Night Shift Premium', amount: 2.5, type: 'per-hour' }
+  { id: 'transport', name: 'Transport', amount: 50, value: 50, description: 'Monthly transport allowance', type: 'fixed' },
+  { id: 'meal', name: 'Meal', amount: 8, value: 8, description: 'Daily meal allowance', type: 'fixed' },
+  { id: 'phone', name: 'Phone', amount: 25, value: 25, description: 'Monthly phone allowance', type: 'fixed' },
+  { id: 'performance', name: 'Performance', amount: 5, value: 5, description: 'Performance bonus', type: 'percentage' },
+  { id: 'night-shift', name: 'Night Shift Premium', amount: 2.5, value: 2.5, description: 'Night shift premium', type: 'per-hour' }
 ];
 
 // ============================================
@@ -152,6 +174,13 @@ export interface Employee {
   excludeFromRoster?: boolean;
   hasSystemAccess?: boolean;
   systemRole?: string;
+  // Additional optional fields
+  idNumber?: string;
+  taxNumber?: string;
+  ssnNumber?: string;
+  tcnNumber?: string;
+  tcnExpiry?: string;
+  iban?: string;
 }
 
 // ============================================
@@ -159,7 +188,7 @@ export interface Employee {
 // ============================================
 
 export interface ShopDayRequirement {
-  day: DayOfWeek | string;
+  day: DayOfWeek | DayOfWeekShort | string;
   amStaff: number;
   pmStaff: number;
   amStart?: string;
@@ -169,6 +198,9 @@ export interface ShopDayRequirement {
   allowFullDay?: boolean;
   isMandatory?: boolean;
 }
+
+// Alias for backwards compatibility
+export type ShopReq = ShopDayRequirement;
 
 export const DEFAULT_SHOP_REQUIREMENTS: ShopDayRequirement[] = DAYS_OF_WEEK.map(day => ({
   day,
@@ -187,8 +219,8 @@ export const DEFAULT_SHOP_REQUIREMENTS: ShopDayRequirement[] = DAYS_OF_WEEK.map(
 // ============================================
 
 export interface SpecialShift {
-  id: string;
-  dayOfWeek?: DayOfWeek;
+  id?: string;
+  dayOfWeek?: DayOfWeek | string;
   day?: string;
   startTime?: string;
   endTime?: string;
@@ -203,7 +235,7 @@ export interface SpecialShiftRequest {
   employeeName?: string;
   shopId: number;
   shopName?: string;
-  dayOfWeek: DayOfWeek;
+  dayOfWeek: DayOfWeek | string;
   shiftType: 'AM' | 'PM' | 'FULL';
   startTime?: string;
   endTime?: string;
@@ -219,14 +251,14 @@ export interface SpecialShiftRequest {
 export interface FixedDayOff {
   employeeId?: number;
   employeeName?: string;
-  dayOfWeek?: DayOfWeek;
+  dayOfWeek?: DayOfWeek | string;
   reason?: string;
   person?: string;
   day?: string;
 }
 
 export interface SpecialDayRule {
-  dayOfWeek?: DayOfWeek;
+  dayOfWeek?: DayOfWeek | string;
   rule?: 'closed' | 'reduced-hours' | 'extra-staff';
   customOpenTime?: string;
   customCloseTime?: string;
@@ -334,7 +366,7 @@ export interface Shop {
   specialShifts?: SpecialShift[];
   fixedDaysOff?: FixedDayOff[];
   specialDayRules?: SpecialDayRule[];
-  assignedEmployees?: ShopAssignedEmployee[] | Employee[];
+  assignedEmployees?: ShopAssignedEmployee[] | Employee[] | Array<{ employeeId: number; isPrimary?: boolean }>;
   trimming?: TrimmingConfig;
   sunday?: SundayConfig;
   // Legacy compatibility
@@ -355,23 +387,61 @@ export interface Shift {
   date: string;
   startTime: string;
   endTime: string;
+  hours?: number;
   shiftType: 'AM' | 'PM' | 'FULL';
   status: 'scheduled' | 'confirmed' | 'completed' | 'cancelled';
   notes?: string;
   isTrimmed?: boolean;
+  company?: Company;
 }
 
+// BackendShift supports BOTH snake_case (from backend) and camelCase (frontend)
 export interface BackendShift {
   id?: number;
-  employee_id: number;
-  shop_id: number;
+  // Snake case (from Python backend)
+  employee_id?: number;
+  shop_id?: number;
+  start_time?: string;
+  end_time?: string;
+  shift_type?: 'AM' | 'PM' | 'FULL';
+  is_trimmed?: boolean;
+  employee_name?: string;
+  shop_name?: string;
+  // Camel case (for frontend use)
+  employeeId?: number;
+  shopId?: number;
+  startTime?: string;
+  endTime?: string;
+  shiftType?: 'AM' | 'PM' | 'FULL';
+  isTrimmed?: boolean;
+  employeeName?: string;
+  shopName?: string;
+  // Common fields
   date: string;
-  start_time: string;
-  end_time: string;
-  shift_type: 'AM' | 'PM' | 'FULL';
+  hours?: number;
   status?: string;
   notes?: string;
-  is_trimmed?: boolean;
+  company?: Company;
+}
+
+// Helper to convert BackendShift to frontend Shift
+export function normalizeShift(bs: BackendShift): Shift {
+  return {
+    id: bs.id ?? 0,
+    employeeId: bs.employeeId ?? bs.employee_id ?? 0,
+    employeeName: bs.employeeName ?? bs.employee_name,
+    shopId: bs.shopId ?? bs.shop_id ?? 0,
+    shopName: bs.shopName ?? bs.shop_name,
+    date: bs.date,
+    startTime: bs.startTime ?? bs.start_time ?? '',
+    endTime: bs.endTime ?? bs.end_time ?? '',
+    hours: bs.hours,
+    shiftType: bs.shiftType ?? bs.shift_type ?? 'FULL',
+    status: (bs.status as Shift['status']) ?? 'scheduled',
+    notes: bs.notes,
+    isTrimmed: bs.isTrimmed ?? bs.is_trimmed,
+    company: bs.company
+  };
 }
 
 // ============================================
@@ -382,10 +452,11 @@ export interface ShiftSwapRequest {
   id: number;
   requesterId: number;
   requesterName?: string;
-  targetId: number;
+  targetId?: number;
+  targetEmployeeId?: number; // Alias
   targetName?: string;
   requesterShiftId: number;
-  targetShiftId: number;
+  targetShiftId?: number;
   requesterShiftDate?: string;
   targetShiftDate?: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -421,6 +492,7 @@ export interface LeaveRequest {
   status: 'pending' | 'approved' | 'rejected';
   reason?: string;
   createdAt?: string;
+  submittedAt?: string; // Alias for createdAt
   reviewedBy?: number;
   reviewedAt?: string;
   reviewNotes?: string;
@@ -439,6 +511,7 @@ export interface ProfileUpdateNotification {
   newValue: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
+  changes?: Record<string, { old: string; new: string }>;
 }
 
 // ============================================
@@ -453,4 +526,23 @@ export interface Roster {
   shifts: Shift[];
   createdAt?: string;
   publishedAt?: string;
+}
+
+// ============================================
+// PART-TIMER AVAILABILITY
+// ============================================
+
+export interface PartTimerAvailability {
+  employeeId: number;
+  employeeName: string;
+  company: Company | string;
+  primaryShopId?: number | null;
+  primaryShopName?: string;
+  availability: {
+    [key in DayOfWeek]?: {
+      available: boolean;
+      start?: string;
+      end?: string;
+    };
+  };
 }
