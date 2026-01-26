@@ -1,5 +1,5 @@
 // frontend/src/components/ShopsView.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Store,
   Plus,
@@ -10,7 +10,6 @@ import {
   MapPin,
   Clock,
   Users,
-  Calendar,
   X,
   ToggleLeft,
   ToggleRight,
@@ -19,28 +18,28 @@ import {
   Scissors,
   Settings,
   Eye,
-  Info
+  Info,
+  RefreshCw
 } from 'lucide-react';
 import type {
   Shop,
   ShopCompany,
-  ShopDayRequirement,
   SpecialShift,
-  FixedDayOff,
-  SpecialDayRule,
   TrimmingConfig,
   SundayConfig,
   DayOfWeek,
-  Employee
+  Employee,
+  StaffingConfig
 } from '../types';
 import {
-  DEFAULT_SHOP_REQUIREMENTS,
   DAYS_OF_WEEK,
   DEFAULT_TRIMMING_CONFIG,
-  DEFAULT_SUNDAY_CONFIG
+  DEFAULT_SUNDAY_CONFIG,
+  DEFAULT_STAFFING_CONFIG
 } from '../types';
 import StaffingConfigPanel from './StaffingConfigPanel';
-import { DEFAULT_STAFFING_CONFIG, StaffingConfig } from '../types';
+
+const API_BASE_URL = 'http://localhost:3001/api';
 
 interface ShopsViewProps {
   onNavigate?: (view: string) => void;
@@ -68,15 +67,13 @@ const ShopFormModal: React.FC<{
     openTime: string;
     closeTime: string;
     isActive: boolean;
-    requirements: ShopDayRequirement[];
     minStaffAtOpen: number;
     minStaffAtClose: number;
     canBeSolo: boolean;
     specialShifts: SpecialShift[];
-    fixedDaysOff: FixedDayOff[];
-    specialDayRules: SpecialDayRule[];
     trimming: TrimmingConfig;
     sunday: SundayConfig;
+    staffingConfig: StaffingConfig;
   }>({
     name: '',
     address: '',
@@ -85,43 +82,38 @@ const ShopFormModal: React.FC<{
     openTime: '06:30',
     closeTime: '21:30',
     isActive: true,
-    requirements: JSON.parse(JSON.stringify(DEFAULT_SHOP_REQUIREMENTS)),
     minStaffAtOpen: 1,
     minStaffAtClose: 1,
     canBeSolo: false,
     specialShifts: [],
-    fixedDaysOff: [],
-    specialDayRules: [],
     trimming: { ...DEFAULT_TRIMMING_CONFIG },
-    sunday: JSON.parse(JSON.stringify(DEFAULT_SUNDAY_CONFIG))
+    sunday: JSON.parse(JSON.stringify(DEFAULT_SUNDAY_CONFIG)),
+    staffingConfig: JSON.parse(JSON.stringify(DEFAULT_STAFFING_CONFIG))
   });
 
   // Load shop data when editing
-useEffect(() => {
-  if (shop) {
-    setFormData({
-      name: shop.name || '',
-      address: shop.address || '',
-      phone: shop.phone || '',
-      company: (shop.company === 'Both' ? 'CMZ' : shop.company) || 'CMZ',
-      openTime: shop.openTime || '06:30',
-      closeTime: shop.closeTime || '21:30',
-      isActive: shop.isActive !== false,
-      requirements: Array.isArray(shop.requirements) && shop.requirements.length > 0
-        ? shop.requirements
-        : JSON.parse(JSON.stringify(DEFAULT_SHOP_REQUIREMENTS)),
-      minStaffAtOpen: shop.minStaffAtOpen ?? 1,
-      minStaffAtClose: shop.minStaffAtClose ?? 1,
-      canBeSolo: shop.canBeSolo ?? false,
-      specialShifts: Array.isArray(shop.specialShifts) ? shop.specialShifts : [],
-      fixedDaysOff: Array.isArray(shop.fixedDaysOff) ? shop.fixedDaysOff : [],
-      specialDayRules: Array.isArray(shop.specialDayRules) ? shop.specialDayRules : [],
-      trimming: shop.trimming ? { ...DEFAULT_TRIMMING_CONFIG, ...shop.trimming } : { ...DEFAULT_TRIMMING_CONFIG },
-      sunday: shop.sunday ? { ...DEFAULT_SUNDAY_CONFIG, ...shop.sunday } : JSON.parse(JSON.stringify(DEFAULT_SUNDAY_CONFIG))
-    });
-  }
-}, [shop]);
-
+  useEffect(() => {
+    if (shop) {
+      setFormData({
+        name: shop.name || '',
+        address: shop.address || '',
+        phone: shop.phone || '',
+        company: (shop.company === 'Both' ? 'CMZ' : shop.company) || 'CMZ',
+        openTime: shop.openTime || '06:30',
+        closeTime: shop.closeTime || '21:30',
+        isActive: shop.isActive !== false,
+        minStaffAtOpen: shop.minStaffAtOpen ?? 1,
+        minStaffAtClose: shop.minStaffAtClose ?? 1,
+        canBeSolo: shop.canBeSolo ?? false,
+        specialShifts: Array.isArray(shop.specialShifts) ? shop.specialShifts : [],
+        trimming: shop.trimming ? { ...DEFAULT_TRIMMING_CONFIG, ...shop.trimming } : { ...DEFAULT_TRIMMING_CONFIG },
+        sunday: shop.sunday ? { ...DEFAULT_SUNDAY_CONFIG, ...shop.sunday } : JSON.parse(JSON.stringify(DEFAULT_SUNDAY_CONFIG)),
+        staffingConfig: shop.staffingConfig 
+          ? { ...DEFAULT_STAFFING_CONFIG, ...shop.staffingConfig }
+          : JSON.parse(JSON.stringify(DEFAULT_STAFFING_CONFIG))
+      });
+    }
+  }, [shop]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -148,7 +140,6 @@ useEffect(() => {
       newErrors.closeTime = 'Closing time must be after opening time';
     }
 
-    // Validate trimming settings
     if (formData.trimming.enabled) {
       if (formData.trimming.minShiftHours < 3 || formData.trimming.minShiftHours > 6) {
         newErrors.minShiftHours = 'Minimum shift hours must be between 3 and 6';
@@ -161,7 +152,6 @@ useEffect(() => {
       }
     }
 
-    // Validate Sunday custom hours
     if (formData.sunday.customHours?.enabled) {
       if (!formData.sunday.customHours.openTime || !formData.sunday.customHours.closeTime) {
         newErrors.sundayHours = 'Sunday hours are required when custom hours are enabled';
@@ -182,56 +172,6 @@ useEffect(() => {
         id: shop?.id
       });
     }
-  };
-
-  const updateRequirement = (dayIndex: number, field: keyof ShopDayRequirement, value: number | boolean | string) => {
-    const newRequirements = [...formData.requirements];
-    newRequirements[dayIndex] = {
-      ...newRequirements[dayIndex],
-      [field]: value
-    };
-    setFormData({ ...formData, requirements: newRequirements });
-  };
-
-  const applyPreset = (preset: 'minimal' | 'standard' | 'busy' | 'weekend-heavy') => {
-    let newRequirements = [...formData.requirements];
-
-    switch (preset) {
-      case 'minimal':
-        newRequirements = newRequirements.map(req => ({
-          ...req,
-          amStaff: 1,
-          pmStaff: 1,
-          allowFullDay: true
-        }));
-        break;
-      case 'standard':
-        newRequirements = newRequirements.map((req, i) => ({
-          ...req,
-          amStaff: i === 6 ? 1 : 2,
-          pmStaff: i === 6 ? 1 : 2,
-          allowFullDay: true
-        }));
-        break;
-      case 'busy':
-        newRequirements = newRequirements.map((req, i) => ({
-          ...req,
-          amStaff: i === 6 ? 2 : 3,
-          pmStaff: i === 6 ? 2 : 3,
-          allowFullDay: true
-        }));
-        break;
-      case 'weekend-heavy':
-        newRequirements = newRequirements.map((req, i) => ({
-          ...req,
-          amStaff: i >= 4 ? 3 : 2,
-          pmStaff: i >= 4 ? 3 : 2,
-          allowFullDay: true
-        }));
-        break;
-    }
-
-    setFormData({ ...formData, requirements: newRequirements });
   };
 
   // Add special shift
@@ -262,17 +202,6 @@ useEffect(() => {
     setFormData({ ...formData, specialShifts: newShifts });
   };
 
-  // Calculate totals for staffing tab
-  const staffingTotals = useMemo(() => {
-    let totalAM = 0;
-    let totalPM = 0;
-    formData.requirements.forEach(req => {
-      totalAM += req.amStaff || 0;
-      totalPM += req.pmStaff || 0;
-    });
-    return { totalAM, totalPM, total: totalAM + totalPM };
-  }, [formData.requirements]);
-
   // Calculate trimmed shift preview
   const trimPreview = useMemo(() => {
     if (!formData.trimming.enabled) return null;
@@ -285,12 +214,10 @@ useEffect(() => {
 
     const midpoint = Math.floor((openMinutes + closeMinutes) / 2);
 
-    // Standard AM shift
     const standardAMStart = formData.openTime;
     const standardAMEndMinutes = midpoint + 30;
     const standardAMEnd = `${Math.floor(standardAMEndMinutes / 60).toString().padStart(2, '0')}:${(standardAMEndMinutes % 60).toString().padStart(2, '0')}`;
 
-    // Trimmed AM shift
     const trimmedStartMinutes = openMinutes + (formData.trimming.trimFromStart * 60);
     const trimmedEndMinutes = standardAMEndMinutes - (formData.trimming.trimFromEnd * 60);
 
@@ -332,9 +259,9 @@ useEffect(() => {
           <div className="flex px-6">
             {[
               { id: 'basic', label: 'Basic Info', icon: Store },
-              { id: 'staffing', label: 'Staffing', icon: Users },
-              { id: 'special', label: 'Special', icon: Calendar },
-              { id: 'rules', label: 'Rules & Scheduling', icon: Settings }
+              { id: 'staffing', label: 'Staffing Config', icon: Users },
+              { id: 'special', label: 'Special', icon: Clock },
+              { id: 'rules', label: 'Rules', icon: Settings }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -496,146 +423,13 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Staffing Tab */}
+            {/* Staffing Config Tab */}
             {activeTab === 'staffing' && (
-              <div className="space-y-6">
-                {/* Quick Presets */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Quick Presets
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { id: 'minimal', label: 'Minimal (1/1)', desc: '1 AM, 1 PM all days' },
-                      { id: 'standard', label: 'Standard (2/2)', desc: '2 AM, 2 PM weekdays' },
-                      { id: 'busy', label: 'Busy (3/3)', desc: '3 AM, 3 PM all days' },
-                      { id: 'weekend-heavy', label: 'Weekend Heavy', desc: 'Extra staff Fri-Sun' }
-                    ].map(preset => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => applyPreset(preset.id as 'minimal' | 'standard' | 'busy' | 'weekend-heavy')}
-                        className="px-3 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                        title={preset.desc}
-                      >
-                        {preset.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Daily Requirements Grid */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Daily Staff Requirements
-                  </label>
-                  <div className="border border-gray-200 rounded-xl overflow-hidden">
-                    <div className="grid grid-cols-5 gap-px bg-gray-200 text-sm font-medium text-gray-700">
-                      <div className="bg-gray-50 p-3">Day</div>
-                      <div className="bg-gray-50 p-3 text-center">AM Staff</div>
-                      <div className="bg-gray-50 p-3 text-center">PM Staff</div>
-                      <div className="bg-gray-50 p-3 text-center">Full Day OK</div>
-                      <div className="bg-gray-50 p-3 text-center">Mandatory</div>
-                    </div>
-                    {DAYS_OF_WEEK.map((day, index) => (
-                      <div key={day} className="grid grid-cols-5 gap-px bg-gray-200">
-                        <div className="bg-white p-3 font-medium text-gray-900 capitalize">
-                          {day.slice(0, 3)}
-                        </div>
-                        <div className="bg-white p-2">
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={formData.requirements[index]?.amStaff || 0}
-                            onChange={e => updateRequirement(index, 'amStaff', parseInt(e.target.value) || 0)}
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-center"
-                          />
-                        </div>
-                        <div className="bg-white p-2">
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={formData.requirements[index]?.pmStaff || 0}
-                            onChange={e => updateRequirement(index, 'pmStaff', parseInt(e.target.value) || 0)}
-                            className="w-full px-2 py-1 border border-gray-200 rounded text-center"
-                          />
-                        </div>
-                        <div className="bg-white p-2 flex justify-center items-center">
-                          <input
-                            type="checkbox"
-                            checked={formData.requirements[index]?.allowFullDay ?? true}
-                            onChange={e => updateRequirement(index, 'allowFullDay', e.target.checked)}
-                            className="w-4 h-4 text-blue-600 rounded"
-                          />
-                        </div>
-                        <div className="bg-white p-2 flex justify-center items-center">
-                          <input
-                            type="checkbox"
-                            checked={formData.requirements[index]?.isMandatory ?? false}
-                            onChange={e => updateRequirement(index, 'isMandatory', e.target.checked)}
-                            className="w-4 h-4 text-blue-600 rounded"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Totals */}
-                <div className="bg-blue-50 rounded-xl p-4">
-                  <div className="text-sm font-medium text-blue-900 mb-2">Weekly Totals</div>
-                  <div className="flex gap-6 text-sm">
-                    <div>
-                      <span className="text-blue-600">AM Shifts:</span>{' '}
-                      <span className="font-medium">{staffingTotals.totalAM}</span>
-                    </div>
-                    <div>
-                      <span className="text-blue-600">PM Shifts:</span>{' '}
-                      <span className="font-medium">{staffingTotals.totalPM}</span>
-                    </div>
-                    <div>
-                      <span className="text-blue-600">Total:</span>{' '}
-                      <span className="font-medium">{staffingTotals.total}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Min Staff Settings */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Minimum Staff Levels
-                  </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">At Opening</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="5"
-                        value={formData.minStaffAtOpen}
-                        onChange={e => setFormData({ ...formData, minStaffAtOpen: parseInt(e.target.value) || 1 })}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">At Closing</label>
-                      <input
-                        type="number"
-                        min="1"
-                        max="5"
-                        value={formData.minStaffAtClose}
-                        onChange={e => setFormData({ ...formData, minStaffAtClose: parseInt(e.target.value) || 1 })}
-                        className="w-full px-3 py-2 border border-gray-200 rounded-lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <StaffingConfigPanel
+                config={formData.staffingConfig}
+                onChange={(newConfig) => setFormData(prev => ({ ...prev, staffingConfig: newConfig }))}
+              />
             )}
-
-            {/* Special Tab */}
 
             {/* Special Tab */}
             {activeTab === 'special' && (
@@ -739,7 +533,7 @@ useEffect(() => {
                               onClick={() => removeSpecialShift(index)}
                               className="p-1 text-red-500 hover:bg-red-50 rounded"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <X className="w-4 h-4" />
                             </button>
                           </div>
                         </div>
@@ -750,7 +544,7 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Rules & Scheduling Tab */}
+            {/* Rules Tab */}
             {activeTab === 'rules' && (
               <div className="space-y-8">
                 {/* Sunday Rules Section */}
@@ -924,8 +718,7 @@ useEffect(() => {
                       <div className="text-sm text-purple-800">
                         <p className="font-medium mb-1">What is hour trimming?</p>
                         <p>When multiple staff are scheduled for the same shift, some can work shorter hours 
-                        to reduce overtime while maintaining coverage. For example, with 4 morning staff, 
-                        2 might work 6:30-14:30 (standard) while 2 work 7:30-12:00 (trimmed).</p>
+                        to reduce overtime while maintaining coverage.</p>
                       </div>
                     </div>
                   </div>
@@ -1024,9 +817,6 @@ useEffect(() => {
                               })}
                               className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Start shift later (e.g., 6:30 → 7:30)
-                            </p>
                             {errors.trimFromStart && (
                               <p className="text-xs text-red-500 mt-1">{errors.trimFromStart}</p>
                             )}
@@ -1047,9 +837,6 @@ useEffect(() => {
                               })}
                               className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              End shift earlier (e.g., 14:30 → 12:00)
-                            </p>
                             {errors.trimFromEnd && (
                               <p className="text-xs text-red-500 mt-1">{errors.trimFromEnd}</p>
                             )}
@@ -1073,9 +860,6 @@ useEffect(() => {
                               })}
                               className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Shortest allowed trimmed shift
-                            </p>
                             {errors.minShiftHours && (
                               <p className="text-xs text-red-500 mt-1">{errors.minShiftHours}</p>
                             )}
@@ -1095,9 +879,6 @@ useEffect(() => {
                               })}
                               className="w-full px-3 py-2 border border-gray-200 rounded-lg"
                             />
-                            <p className="text-xs text-gray-500 mt-1">
-                              Start trimming when staff count exceeds this
-                            </p>
                           </div>
                         </div>
                       </div>
@@ -1164,226 +945,171 @@ useEffect(() => {
 };
 
 // Main ShopsView Component
-const ShopsView: React.FC<ShopsViewProps> = ({ 
-  onNavigate: _onNavigate, 
-  shops: propShops = [], 
+const ShopsView: React.FC<ShopsViewProps> = ({
+  shops: propShops,
   setShops: propSetShops,
-  employees: _employees = [],
-  setEmployees: _setEmployees
 }) => {
-  // USE PROPS IF PROVIDED, OTHERWISE USE LOCAL STATE
-  const [localShops, setLocalShops] = useState<Shop[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [shops, setShopsState] = useState<Shop[]>(propShops || []);
   const [searchTerm, setSearchTerm] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<'all' | 'CMZ' | 'CS'>('all');
-  const [showInactive, setShowInactive] = useState(false);
+  const [filterCompany, setFilterCompany] = useState<'all' | ShopCompany>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [showModal, setShowModal] = useState(false);
   const [editingShop, setEditingShop] = useState<Shop | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Determine which shops/setShops to use
-  const shops = propSetShops ? propShops : localShops;
-  const setShops = propSetShops || setLocalShops;
+  const setShops = propSetShops || setShopsState;
 
-  // Fetch shops from API
-  const fetchShops = async () => {
+  // Fetch shops from backend
+  const fetchShops = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch('http://localhost:3001/api/shops', {
+      const response = await fetch(`${API_BASE_URL}/shops`, {
+        cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
         }
       });
-      
       if (!response.ok) {
-        throw new Error(`Failed to fetch shops: ${response.status}`);
+        throw new Error('Failed to fetch shops');
       }
-      
       const data = await response.json();
-      console.log('Fetched shops:', data.length);
       setShops(data);
     } catch (err) {
       console.error('Error fetching shops:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load shops');
+      setError('Failed to load shops. Please try again.');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  };
+  }, [setShops]);
 
-  // Fetch on mount
+  // Initial fetch
   useEffect(() => {
-    fetchShops();
-  }, []);
+    if (!propShops || propShops.length === 0) {
+      fetchShops();
+    }
+  }, [fetchShops, propShops]);
 
-  // Save shop handler
+  // Sync with prop shops
+  useEffect(() => {
+    if (propShops) {
+      setShopsState(propShops);
+    }
+  }, [propShops]);
+
+  // Handle save shop
   const handleSaveShop = async (shopData: Partial<Shop>) => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      console.log('=== SAVING SHOP ===');
-      console.log('Shop data:', shopData);
+      const isUpdate = !!shopData.id;
+      const url = isUpdate 
+        ? `${API_BASE_URL}/shops/${shopData.id}`
+        : `${API_BASE_URL}/shops`;
       
-      const url = shopData.id
-        ? `http://localhost:3001/api/shops/${shopData.id}`
-        : 'http://localhost:3001/api/shops';
-
-      const method = shopData.id ? 'PATCH' : 'POST';
+      const method = isUpdate ? 'PATCH' : 'POST';
       
-      console.log('URL:', url);
-      console.log('Method:', method);
-
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(shopData)
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(shopData),
       });
-
-      console.log('Response status:', response.status);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Failed to save shop: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to ${isUpdate ? 'update' : 'create'} shop`);
       }
 
-      const result = await response.json();
-      console.log('Save result:', result);
-
-      // Fetch fresh data
-      console.log('Fetching fresh shop list...');
-      const freshResponse = await fetch('http://localhost:3001/api/shops', {
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (freshResponse.ok) {
-        const freshShops = await freshResponse.json();
-        console.log('Fresh shops loaded:', freshShops.length);
-        setShops(freshShops);
-      }
-
-      // Close modals
+      await fetchShops();
+      setShowModal(false);
       setEditingShop(null);
-      setShowAddModal(false);
-      
-      console.log('=== SAVE COMPLETE ===');
     } catch (err) {
-      console.error('Save error:', err);
-      alert(err instanceof Error ? err.message : 'Failed to save shop');
+      console.error('Error saving shop:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save shop');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Delete shop handler
+  // Handle delete shop
   const handleDeleteShop = async (shopId: number) => {
-    if (!confirm('Are you sure you want to delete this shop?')) return;
+    if (!window.confirm('Are you sure you want to delete this shop? This action cannot be undone.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
 
     try {
-      const response = await fetch(`http://localhost:3001/api/shops/${shopId}`, {
-        method: 'DELETE'
+      const response = await fetch(`${API_BASE_URL}/shops/${shopId}`, {
+        method: 'DELETE',
       });
 
       if (!response.ok) {
         throw new Error('Failed to delete shop');
       }
 
-      // Fetch fresh data
-      const freshResponse = await fetch('http://localhost:3001/api/shops', {
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (freshResponse.ok) {
-        const freshShops = await freshResponse.json();
-        setShops(freshShops);
-      }
+      await fetchShops();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete shop');
+      console.error('Error deleting shop:', err);
+      setError('Failed to delete shop. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Toggle active handler
+  // Handle toggle shop active status
   const handleToggleActive = async (shop: Shop) => {
+    setIsLoading(true);
+    setError(null);
+
     try {
-      const response = await fetch(`http://localhost:3001/api/shops/${shop.id}`, {
+      const response = await fetch(`${API_BASE_URL}/shops/${shop.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...shop, isActive: !shop.isActive })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isActive: !shop.isActive }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update shop');
+        throw new Error('Failed to update shop status');
       }
 
-      // Fetch fresh data
-      const freshResponse = await fetch('http://localhost:3001/api/shops', {
-        headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        }
-      });
-      
-      if (freshResponse.ok) {
-        const freshShops = await freshResponse.json();
-        setShops(freshShops);
-      }
+      await fetchShops();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update shop');
+      console.error('Error toggling shop status:', err);
+      setError('Failed to update shop status. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Filter shops
   const filteredShops = useMemo(() => {
     return shops.filter(shop => {
-      const matchesSearch = shop.name.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCompany = companyFilter === 'all' || shop.company === companyFilter;
-      const matchesActive = showInactive || shop.isActive;
-      return matchesSearch && matchesCompany && matchesActive;
+      const matchesSearch = shop.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        shop.address?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCompany = filterCompany === 'all' || shop.company === filterCompany;
+      const matchesStatus = filterStatus === 'all' ||
+        (filterStatus === 'active' && shop.isActive) ||
+        (filterStatus === 'inactive' && !shop.isActive);
+      return matchesSearch && matchesCompany && matchesStatus;
     });
-  }, [shops, searchTerm, companyFilter, showInactive]);
+  }, [shops, searchTerm, filterCompany, filterStatus]);
 
   // Stats
-  const stats = useMemo(() => {
-    const active = shops.filter(s => s.isActive);
-    const cmz = shops.filter(s => s.company === 'CMZ');
-    const cs = shops.filter(s => s.company === 'CS');
-    return {
-      total: shops.length,
-      active: active.length,
-      cmz: cmz.length,
-      cs: cs.length
-    };
-  }, [shops]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading shops...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 text-center">
-        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Shops</h3>
-        <p className="text-gray-600 mb-4">{error}</p>
-        <button
-          onClick={fetchShops}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
+  const stats = useMemo(() => ({
+    total: shops.length,
+    active: shops.filter(s => s.isActive).length,
+    cmz: shops.filter(s => s.company === 'CMZ').length,
+    cs: shops.filter(s => s.company === 'CS').length
+  }), [shops]);
 
   return (
     <div className="p-6 space-y-6">
@@ -1391,210 +1117,203 @@ const ShopsView: React.FC<ShopsViewProps> = ({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Shops</h1>
-          <p className="text-gray-600">Manage your shop locations and staffing requirements</p>
+          <p className="text-gray-500">Manage your shop locations and staffing requirements</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Add Shop
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={fetchShops}
+            disabled={isLoading}
+            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+            title="Refresh shops"
+          >
+            <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => {
+              setEditingShop(null);
+              setShowModal(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-5 h-5" />
+            Add Shop
+          </button>
+        </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm">Total Shops</p>
-              <p className="text-3xl font-bold">{stats.total}</p>
-            </div>
-            <Store className="w-10 h-10 text-blue-200" />
-          </div>
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-red-600" />
+          <span className="text-red-700">{error}</span>
+          <button
+            onClick={() => setError(null)}
+            className="ml-auto text-red-600 hover:text-red-800"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm">Active</p>
-              <p className="text-3xl font-bold">{stats.active}</p>
-            </div>
-            <ToggleRight className="w-10 h-10 text-green-200" />
-          </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl p-4 border border-gray-200">
+          <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
+          <div className="text-sm text-gray-500">Total Shops</div>
         </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm">CMZ</p>
-              <p className="text-3xl font-bold">{stats.cmz}</p>
-            </div>
-            <Store className="w-10 h-10 text-purple-200" />
-          </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-200">
+          <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+          <div className="text-sm text-gray-500">Active</div>
         </div>
-        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-amber-100 text-sm">CS</p>
-              <p className="text-3xl font-bold">{stats.cs}</p>
-            </div>
-            <Store className="w-10 h-10 text-amber-200" />
-          </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-200">
+          <div className="text-2xl font-bold text-blue-600">{stats.cmz}</div>
+          <div className="text-sm text-gray-500">CMZ</div>
+        </div>
+        <div className="bg-white rounded-xl p-4 border border-gray-200">
+          <div className="text-2xl font-bold text-emerald-600">{stats.cs}</div>
+          <div className="text-sm text-gray-500">CS</div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex-1 min-w-64">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search shops..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {(['all', 'CMZ', 'CS'] as const).map(filter => (
-            <button
-              key={filter}
-              onClick={() => setCompanyFilter(filter)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                companyFilter === filter
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              {filter === 'all' ? 'All' : filter}
-            </button>
-          ))}
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer">
+      <div className="flex items-center gap-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
-            type="checkbox"
-            checked={showInactive}
-            onChange={(e) => setShowInactive(e.target.checked)}
-            className="w-4 h-4 text-blue-600 rounded"
+            type="text"
+            placeholder="Search shops..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
-          <span className="text-sm text-gray-600">Show inactive</span>
-        </label>
+        </div>
+        <select
+          value={filterCompany}
+          onChange={e => setFilterCompany(e.target.value as 'all' | ShopCompany)}
+          className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Companies</option>
+          <option value="CMZ">CMZ</option>
+          <option value="CS">CS</option>
+        </select>
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value as 'all' | 'active' | 'inactive')}
+          className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
       </div>
 
-      {/* Shop Grid */}
-      {filteredShops.length === 0 ? (
-        <div className="text-center py-12">
-          <Store className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No shops found</h3>
-          <p className="text-gray-600">
-            {searchTerm || companyFilter !== 'all'
-              ? 'Try adjusting your search or filters'
-              : 'Add your first shop to get started'}
+      {/* Shops Grid */}
+      {isLoading && shops.length === 0 ? (
+        <div className="flex items-center justify-center py-12">
+          <RefreshCw className="w-8 h-8 text-blue-600 animate-spin" />
+        </div>
+      ) : filteredShops.length === 0 ? (
+        <div className="text-center py-12 bg-gray-50 rounded-xl">
+          <Store className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900">No shops found</h3>
+          <p className="text-gray-500">
+            {searchTerm || filterCompany !== 'all' || filterStatus !== 'all'
+              ? 'Try adjusting your filters'
+              : 'Get started by adding your first shop'}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredShops.map(shop => (
             <div
               key={shop.id}
-              className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${
-                !shop.isActive ? 'opacity-60' : ''
+              className={`bg-white rounded-xl border p-4 transition-all hover:shadow-md ${
+                shop.isActive ? 'border-gray-200' : 'border-gray-200 opacity-60'
               }`}
             >
               {/* Shop Header */}
-              <div className={`p-4 ${
-                shop.company === 'CMZ' 
-                  ? 'bg-gradient-to-r from-purple-500 to-purple-600' 
-                  : 'bg-gradient-to-r from-amber-500 to-amber-600'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                      <Store className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-white">{shop.name}</h3>
-                      <span className="text-xs text-white/80">{shop.company}</span>
-                    </div>
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${
+                    shop.company === 'CMZ' ? 'bg-blue-100' : 'bg-emerald-100'
+                  }`}>
+                    <Store className={`w-5 h-5 ${
+                      shop.company === 'CMZ' ? 'text-blue-600' : 'text-emerald-600'
+                    }`} />
                   </div>
-                  <button
-                    onClick={() => handleToggleActive(shop)}
-                    className={`p-2 rounded-lg transition-colors ${
-                      shop.isActive 
-                        ? 'bg-white/20 text-white hover:bg-white/30' 
-                        : 'bg-red-500/20 text-red-100 hover:bg-red-500/30'
-                    }`}
-                  >
-                    {shop.isActive ? (
-                      <ToggleRight className="w-5 h-5" />
-                    ) : (
-                      <ToggleLeft className="w-5 h-5" />
-                    )}
-                  </button>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">{shop.name}</h3>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      shop.company === 'CMZ' 
+                        ? 'bg-blue-100 text-blue-700' 
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {shop.company}
+                    </span>
+                  </div>
                 </div>
+                <button
+                  onClick={() => handleToggleActive(shop)}
+                  className={`p-1 rounded transition-colors ${
+                    shop.isActive ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                  title={shop.isActive ? 'Deactivate' : 'Activate'}
+                >
+                  {shop.isActive ? (
+                    <ToggleRight className="w-6 h-6" />
+                  ) : (
+                    <ToggleLeft className="w-6 h-6" />
+                  )}
+                </button>
               </div>
 
               {/* Shop Details */}
-              <div className="p-4 space-y-3">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Clock className="w-4 h-4" />
-                  <span>{shop.openTime || '06:30'} - {shop.closeTime || '21:30'}</span>
-                </div>
-                
+              <div className="space-y-2 text-sm text-gray-600 mb-4">
                 {shop.address && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <MapPin className="w-4 h-4" />
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-gray-400" />
                     <span className="truncate">{shop.address}</span>
                   </div>
                 )}
-
                 {shop.phone && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Phone className="w-4 h-4" />
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 text-gray-400" />
                     <span>{shop.phone}</span>
                   </div>
                 )}
-
-                {/* Weekly staffing summary */}
-                {shop.requirements && shop.requirements.length > 0 && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                      <Users className="w-4 h-4" />
-                      <span>Weekly staffing</span>
-                    </div>
-                    <div className="flex gap-1">
-                      {shop.requirements.slice(0, 7).map((req, i) => (
-                        <div
-                          key={i}
-                          className="flex-1 text-center py-1 bg-gray-50 rounded text-xs"
-                          title={`${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]}: ${req.amStaff || 0}AM / ${req.pmStaff || 0}PM`}
-                        >
-                          <div className="font-medium text-gray-700">
-                            {(req.amStaff || 0) + (req.pmStaff || 0)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-gray-400" />
+                  <span>{shop.openTime} - {shop.closeTime}</span>
+                </div>
+                {shop.staffingConfig && (
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-gray-400" />
+                    <span className="capitalize">
+                      {shop.staffingConfig.coverageMode === 'split' ? 'Split Shifts' :
+                       shop.staffingConfig.coverageMode === 'fullDayOnly' ? 'Full Day Only' :
+                       'Flexible'}
+                    </span>
                   </div>
                 )}
               </div>
 
               {/* Actions */}
-              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
+              <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
                 <button
-                  onClick={() => setEditingShop(shop)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  onClick={() => {
+                    setEditingShop(shop);
+                    setShowModal(true);
+                  }}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 >
                   <Edit2 className="w-4 h-4" />
                   Edit
                 </button>
                 <button
                   onClick={() => handleDeleteShop(shop.id)}
-                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="flex items-center justify-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
-                  Delete
                 </button>
               </div>
             </div>
@@ -1602,12 +1321,12 @@ const ShopsView: React.FC<ShopsViewProps> = ({
         </div>
       )}
 
-      {/* Add/Edit Modal */}
-      {(showAddModal || editingShop) && (
+      {/* Modal */}
+      {showModal && (
         <ShopFormModal
           shop={editingShop}
           onClose={() => {
-            setShowAddModal(false);
+            setShowModal(false);
             setEditingShop(null);
           }}
           onSave={handleSaveShop}
