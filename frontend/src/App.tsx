@@ -2771,19 +2771,45 @@ export default function App() {
   const [profileUpdateNotifications, setProfileUpdateNotifications] = useState<ProfileUpdateNotification[]>([]);
 
   const syncToDatabase = async () => {
-    try {
-      for (const shop of shops) {
-        await fetch(`${API_BASE_URL}/shops`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(shop) });
+  try {
+    for (const shop of shops) {
+      // Use PUT/PATCH if shop has ID (update), POST only for new shops
+      if (shop.id) {
+        await fetch(`${API_BASE_URL}/shops/${shop.id}`, { 
+          method: 'PATCH', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(shop) 
+        });
+      } else {
+        await fetch(`${API_BASE_URL}/shops`, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(shop) 
+        });
       }
-      for (const employee of employees) {
-        await fetch(`${API_BASE_URL}/employees`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(employee) });
-      }
-      alert('Data synced to database successfully!');
-    } catch (error) {
-      console.error('Sync failed:', error);
-      alert('Sync failed - check console');
     }
-  };
+    for (const employee of employees) {
+      if (employee.id) {
+        await fetch(`${API_BASE_URL}/employees/${employee.id}`, { 
+          method: 'PATCH', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(employee) 
+        });
+      } else {
+        await fetch(`${API_BASE_URL}/employees`, { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(employee) 
+        });
+      }
+    }
+    alert('Data synced to database successfully!');
+  } catch (error) {
+    console.error('Sync failed:', error);
+    alert('Sync failed - check console');
+  }
+};
+
 
   // Check for existing login on startup
   useEffect(() => {

@@ -49,10 +49,18 @@ app.get('/api/shops', (req, res) => {
   }
 });
 
-// Create shop
+// Create shop - use INSERT OR IGNORE to prevent duplicates
 app.post('/api/shops', (req, res) => {
   try {
     const shop = req.body;
+    
+    // Prevent duplicates by name
+    const existing = db.prepare('SELECT id FROM shops WHERE name = ?').get(shop.name) as any;
+    if (existing) {
+      console.log(`Shop "${shop.name}" already exists, skipping`);
+      return res.json({ success: true, id: existing.id, existed: true });
+    }
+    
     const stmt = db.prepare(`
       INSERT INTO shops (name, company, isActive, address, phone, openTime, closeTime, 
         requirements, specialRequests, fixedDaysOff, specialDayRules, assignedEmployees, rules,
@@ -88,6 +96,7 @@ app.post('/api/shops', (req, res) => {
     res.status(500).json({ error: 'Failed to create shop' });
   }
 });
+
 
 // Update shop (PATCH)
 app.patch('/api/shops/:id', (req, res) => {
