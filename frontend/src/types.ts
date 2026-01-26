@@ -5,11 +5,10 @@
 // ============================================
 
 export type Company = 'CMZ' | 'CS' | 'Both';
-export type ShopCompany = 'CMZ' | 'CS' | 'Both'; // Allow 'Both' for compatibility
+export type ShopCompany = 'CMZ' | 'CS' | 'Both';
 
 export type EmploymentType = 'full-time' | 'part-time' | 'student';
 
-// REMOVED 'barista' as requested
 export type EmployeeRole = 'supervisor' | 'manager' | 'admin' | 'staff';
 
 export type ViewType =
@@ -163,7 +162,7 @@ export interface Employee {
 }
 
 // ============================================
-// SHOP REQUIREMENTS
+// SHOP REQUIREMENTS (LEGACY - kept for compatibility)
 // ============================================
 
 export interface ShopDayRequirement {
@@ -176,7 +175,6 @@ export interface ShopDayRequirement {
   pmEnd?: string;
   allowFullDay?: boolean;
   isMandatory?: boolean;
-  // Legacy indexed format
   Mon?: number;
   Tue?: number;
   Wed?: number;
@@ -199,6 +197,55 @@ export const DEFAULT_SHOP_REQUIREMENTS: ShopDayRequirement[] = DAYS_OF_WEEK.map(
   allowFullDay: true,
   isMandatory: false
 }));
+
+// ============================================
+// NEW STAFFING CONFIG (controls roster generator)
+// ============================================
+
+export type CoverageMode = 'split' | 'flexible' | 'fullDayOnly';
+
+export interface DayStaffingConfig {
+  day: string;  // 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+  minAM: number;
+  minPM: number;
+  minFullDay: number;
+  maxStaff: number;
+  isMandatory: boolean;
+}
+
+export interface StaffingConfig {
+  coverageMode: CoverageMode;
+  minimumStaff: {
+    atOpening: number;
+    atClosing: number;
+  };
+  weeklySchedule: DayStaffingConfig[];
+  rules: {
+    fullDayCountsAsBoth: boolean;
+    neverBelowMinimum: boolean;
+  };
+}
+
+export const DEFAULT_STAFFING_CONFIG: StaffingConfig = {
+  coverageMode: 'flexible',
+  minimumStaff: {
+    atOpening: 1,
+    atClosing: 1,
+  },
+  weeklySchedule: [
+    { day: 'Mon', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
+    { day: 'Tue', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
+    { day: 'Wed', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
+    { day: 'Thu', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
+    { day: 'Fri', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
+    { day: 'Sat', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
+    { day: 'Sun', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 2, isMandatory: false },
+  ],
+  rules: {
+    fullDayCountsAsBoth: true,
+    neverBelowMinimum: true,
+  },
+};
 
 // ============================================
 // SPECIAL SHIFTS
@@ -348,6 +395,8 @@ export interface Shop {
   sunday?: SundayConfig;
   specialRequests?: SpecialShift[];
   rules?: ShopRules;
+  // NEW: Staffing configuration for roster generator
+  staffingConfig?: StaffingConfig;
 }
 
 // ============================================

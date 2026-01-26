@@ -209,12 +209,12 @@ app.get('/api/employees', (req, res) => {
   }
 });
 
-// Create employee
+// Create employee (use INSERT OR REPLACE to handle duplicates)
 app.post('/api/employees', (req, res) => {
   try {
     const emp = req.body;
     const stmt = db.prepare(`
-      INSERT INTO employees (id, name, email, phone, company, employmentType, role, weeklyHours, payScaleId, allowanceIds, excludeFromRoster, hasSystemAccess, systemRole, primaryShopId, secondaryShopIds, idNumber, taxNumber, ssnNumber, tcnNumber, tcnExpiry, iban)
+      INSERT OR REPLACE INTO employees (id, name, email, phone, company, employmentType, role, weeklyHours, payScaleId, allowanceIds, excludeFromRoster, hasSystemAccess, systemRole, primaryShopId, secondaryShopIds, idNumber, taxNumber, ssnNumber, tcnNumber, tcnExpiry, iban)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(

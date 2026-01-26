@@ -39,6 +39,8 @@ import {
   DEFAULT_TRIMMING_CONFIG,
   DEFAULT_SUNDAY_CONFIG
 } from '../types';
+import StaffingConfigPanel from './StaffingConfigPanel';
+import { DEFAULT_STAFFING_CONFIG, StaffingConfig } from '../types';
 
 interface ShopsViewProps {
   onNavigate?: (view: string) => void;

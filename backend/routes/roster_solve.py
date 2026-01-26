@@ -1,6 +1,6 @@
 # backend/routes/roster_solve.py
 """
-Flask route for roster solving API
+Flask route for roster solving API - FIXED VERSION
 """
 
 from flask import Blueprint, request, jsonify
@@ -25,7 +25,8 @@ from roster_solver import (
     build_templates_from_config,
     build_demands_from_config,
     load_shop_config,
-    DAYS_OF_WEEK
+    DAYS_OF_WEEK,
+    DAY_NAME_MAP
 )
 
 roster_solve_bp = Blueprint('roster_solve', __name__)
@@ -85,9 +86,20 @@ def solve_roster():
                 continue
             if not emp_data.get('isActive', True):
                 continue
+            if emp_data.get('excludeFromRoster', False):
+                continue
             
             emp_name = emp_data.get('name', '')
             is_am_only = emp_name in am_only_names
+            
+            # Parse secondaryShopIds - handle both string and array
+            secondary_shop_ids = emp_data.get('secondaryShopIds', [])
+            if isinstance(secondary_shop_ids, str):
+                import json
+                try:
+                    secondary_shop_ids = json.loads(secondary_shop_ids)
+                except:
+                    secondary_shop_ids = []
             
             employees.append(Employee(
                 id=emp_id,
@@ -98,12 +110,12 @@ def solve_roster():
                 is_active=True,
                 am_only=is_am_only,
                 primary_shop_id=emp_data.get('primaryShopId'),
-                secondary_shop_ids=emp_data.get('secondaryShopIds', [])
+                secondary_shop_ids=secondary_shop_ids if secondary_shop_ids else []
             ))
         
         print(f"Active employees: {len(employees)}")
         
-        # Build ShopAssignment objects
+        # Build ShopAssignment objects from shop.assignedEmployees
         assignments = []
         for shop_data in raw_shops:
             shop_id = shop_data.get('id')
@@ -117,15 +129,63 @@ def solve_roster():
                     assigned = []
             
             for emp_data in assigned:
-                emp_id = emp_data.get('id') if isinstance(emp_data, dict) else emp_data
+                if isinstance(emp_data, dict):
+                    # Could be {employeeId: X} or {id: X}
+                    emp_id = emp_data.get('employeeId') or emp_data.get('id')
+                else:
+                    emp_id = emp_data
+                    
                 if emp_id and emp_id not in excluded_ids:
+                    # Check if assignment already exists
+                    exists = any(
+                        a.employee_id == emp_id and a.shop_id == shop_id 
+                        for a in assignments
+                    )
+                    if not exists:
+                        assignments.append(ShopAssignment(
+                            employee_id=emp_id,
+                            shop_id=shop_id,
+                            is_primary=False
+                        ))
+        
+        # Also build assignments from employee primaryShopId and secondaryShopIds
+        for emp in employees:
+            if emp.primary_shop_id:
+                # Check if this assignment already exists
+                exists = any(
+                    a.employee_id == emp.id and a.shop_id == emp.primary_shop_id 
+                    for a in assignments
+                )
+                if not exists:
                     assignments.append(ShopAssignment(
-                        employee_id=emp_id,
-                        shop_id=shop_id,
-                        is_primary=False
+                        employee_id=emp.id,
+                        shop_id=emp.primary_shop_id,
+                        is_primary=True
                     ))
+            
+            for sec_shop_id in (emp.secondary_shop_ids or []):
+                if sec_shop_id:
+                    exists = any(
+                        a.employee_id == emp.id and a.shop_id == sec_shop_id 
+                        for a in assignments
+                    )
+                    if not exists:
+                        assignments.append(ShopAssignment(
+                            employee_id=emp.id,
+                            shop_id=sec_shop_id,
+                            is_primary=False
+                        ))
         
         print(f"Shop assignments: {len(assignments)}")
+        
+        # Debug: show some assignments
+        if assignments:
+            print(f"  Sample assignments:")
+            for a in assignments[:5]:
+                emp = next((e for e in employees if e.id == a.employee_id), None)
+                shop = next((s for s in raw_shops if s.get('id') == a.shop_id), None)
+                if emp and shop:
+                    print(f"    - {emp.name} -> {shop.get('name')} (primary={a.is_primary})")
         
         # Build LeaveRequest objects (from employees or separate endpoint)
         leave_requests = []
@@ -152,8 +212,12 @@ def solve_roster():
                     day_indices.append(day)
                 elif isinstance(day, str):
                     day_lower = day.lower()
+                    # Check full name first
                     if day_lower in DAYS_OF_WEEK:
                         day_indices.append(DAYS_OF_WEEK.index(day_lower))
+                    # Check short name
+                    elif day_lower in DAY_NAME_MAP:
+                        day_indices.append(DAY_NAME_MAP[day_lower])
             if day_indices:
                 fixed_days_off[emp_key_lower] = day_indices
         
