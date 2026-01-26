@@ -1162,369 +1162,445 @@ useEffect(() => {
 };
 
 // Main ShopsView Component
-const ShopsView: React.FC<ShopsViewProps> = () => {
-  const [shops, setShops] = useState<Shop[]>([]);
+const ShopsView: React.FC<ShopsViewProps> = ({ 
+  onNavigate: _onNavigate, 
+  shops: propShops = [], 
+  setShops: propSetShops,
+  employees: _employees = [],
+  setEmployees: _setEmployees
+}) => {
+  // USE PROPS IF PROVIDED, OTHERWISE USE LOCAL STATE
+  const [localShops, setLocalShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<'all' | ShopCompany>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [companyFilter, setCompanyFilter] = useState<'all' | 'CMZ' | 'CS'>('all');
+  const [showInactive, setShowInactive] = useState(false);
   const [editingShop, setEditingShop] = useState<Shop | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  // Fetch shops
+  // Determine which shops/setShops to use
+  const shops = propSetShops ? propShops : localShops;
+  const setShops = propSetShops || setLocalShops;
+
+  // Fetch shops from API
+  const fetchShops = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('http://localhost:3001/api/shops', {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch shops: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('Fetched shops:', data.length);
+      setShops(data);
+    } catch (err) {
+      console.error('Error fetching shops:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load shops');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch on mount
   useEffect(() => {
     fetchShops();
   }, []);
 
-const fetchShops = async () => {
-  try {
-    setLoading(true);
-    const response = await fetch('http://localhost:3001/api/shops', {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache'
-      }
-    });
-    if (!response.ok) throw new Error('Failed to fetch shops');
-    const data = await response.json();
-    setShops(data);
-  } catch (err) {
-    setError(err instanceof Error ? err.message : 'Failed to load shops');
-  } finally {
-    setLoading(false);
-  }
-};
-
-
+  // Save shop handler
   const handleSaveShop = async (shopData: Partial<Shop>) => {
-  try {
-    const url = shopData.id
-      ? `http://localhost:3001/api/shops/${shopData.id}`
-      : 'http://localhost:3001/api/shops';
+    try {
+      console.log('=== SAVING SHOP ===');
+      console.log('Shop data:', shopData);
+      
+      const url = shopData.id
+        ? `http://localhost:3001/api/shops/${shopData.id}`
+        : 'http://localhost:3001/api/shops';
 
-    const response = await fetch(url, {
-      method: shopData.id ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(shopData)
-    });
+      const method = shopData.id ? 'PATCH' : 'POST';
+      
+      console.log('URL:', url);
+      console.log('Method:', method);
 
-    if (!response.ok) throw new Error('Failed to save shop');
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(shopData)
+      });
 
-    // Refresh shops list
-    const shopsRes = await fetch('http://localhost:3001/api/shops');
-    const freshShops = await shopsRes.json();
-    setShops(freshShops);
-    
-    setEditingShop(null);
-    setShowAddModal(false);
-  } catch (err) {
-    alert(err instanceof Error ? err.message : 'Failed to save shop');
-  }
-};
+      console.log('Response status:', response.status);
 
-const handleDeleteShop = async (shopId: number) => {
-  if (!confirm('Are you sure you want to delete this shop?')) return;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to save shop: ${response.status}`);
+      }
 
-  try {
-    const response = await fetch(`http://localhost:3001/api/shops/${shopId}`, {
-      method: 'DELETE'
-    });
+      const result = await response.json();
+      console.log('Save result:', result);
 
-    if (!response.ok) throw new Error('Failed to delete shop');
-    
-    const shopsRes = await fetch('http://localhost:3001/api/shops');
-    const freshShops = await shopsRes.json();
-    setShops(freshShops);
-  } catch (err) {
-    alert(err instanceof Error ? err.message : 'Failed to delete shop');
-  }
-};
+      // Fetch fresh data
+      console.log('Fetching fresh shop list...');
+      const freshResponse = await fetch('http://localhost:3001/api/shops', {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (freshResponse.ok) {
+        const freshShops = await freshResponse.json();
+        console.log('Fresh shops loaded:', freshShops.length);
+        setShops(freshShops);
+      }
 
-const handleToggleActive = async (shop: Shop) => {
-  try {
-    const response = await fetch(`http://localhost:3001/api/shops/${shop.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...shop, isActive: !shop.isActive })
-    });
+      // Close modals
+      setEditingShop(null);
+      setShowAddModal(false);
+      
+      console.log('=== SAVE COMPLETE ===');
+    } catch (err) {
+      console.error('Save error:', err);
+      alert(err instanceof Error ? err.message : 'Failed to save shop');
+    }
+  };
 
-    if (!response.ok) throw new Error('Failed to update shop');
-    
-    const shopsRes = await fetch('http://localhost:3001/api/shops');
-    const freshShops = await shopsRes.json();
-    setShops(freshShops);
-  } catch (err) {
-    alert(err instanceof Error ? err.message : 'Failed to update shop');
-  }
-};
+  // Delete shop handler
+  const handleDeleteShop = async (shopId: number) => {
+    if (!confirm('Are you sure you want to delete this shop?')) return;
 
+    try {
+      const response = await fetch(`http://localhost:3001/api/shops/${shopId}`, {
+        method: 'DELETE'
+      });
 
+      if (!response.ok) {
+        throw new Error('Failed to delete shop');
+      }
 
-  // Filtered shops
+      // Fetch fresh data
+      const freshResponse = await fetch('http://localhost:3001/api/shops', {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (freshResponse.ok) {
+        const freshShops = await freshResponse.json();
+        setShops(freshShops);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to delete shop');
+    }
+  };
+
+  // Toggle active handler
+  const handleToggleActive = async (shop: Shop) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/shops/${shop.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...shop, isActive: !shop.isActive })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update shop');
+      }
+
+      // Fetch fresh data
+      const freshResponse = await fetch('http://localhost:3001/api/shops', {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (freshResponse.ok) {
+        const freshShops = await freshResponse.json();
+        setShops(freshShops);
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to update shop');
+    }
+  };
+
+  // Filter shops
   const filteredShops = useMemo(() => {
     return shops.filter(shop => {
-      const matchesSearch = shop.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        shop.address?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = shop.name.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCompany = companyFilter === 'all' || shop.company === companyFilter;
-      const matchesStatus = statusFilter === 'all' ||
-        (statusFilter === 'active' && shop.isActive) ||
-        (statusFilter === 'inactive' && !shop.isActive);
-      return matchesSearch && matchesCompany && matchesStatus;
+      const matchesActive = showInactive || shop.isActive;
+      return matchesSearch && matchesCompany && matchesActive;
     });
-  }, [shops, searchTerm, companyFilter, statusFilter]);
+  }, [shops, searchTerm, companyFilter, showInactive]);
 
   // Stats
-  const stats = useMemo(() => ({
-    total: shops.length,
-    active: shops.filter(s => s.isActive).length,
-    inactive: shops.filter(s => !s.isActive).length,
-    cmz: shops.filter(s => s.company === 'CMZ').length,
-    cs: shops.filter(s => s.company === 'CS').length
-  }), [shops]);
+  const stats = useMemo(() => {
+    const active = shops.filter(s => s.isActive);
+    const cmz = shops.filter(s => s.company === 'CMZ');
+    const cs = shops.filter(s => s.company === 'CS');
+    return {
+      total: shops.length,
+      active: active.length,
+      cmz: cmz.length,
+      cs: cs.length
+    };
+  }, [shops]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading shops...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-12">
+      <div className="p-6 text-center">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-        <p className="text-gray-600">{error}</p>
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error Loading Shops</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
         <button
           onClick={fetchShops}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
-          Retry
+          Try Again
         </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Shops</h1>
-          <p className="text-gray-500">Manage shop locations and staffing requirements</p>
+          <p className="text-gray-600">Manage your shop locations and staffing requirements</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-5 h-5" />
           Add Shop
         </button>
       </div>
 
-     {/* Stats Cards */}
-<div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-  <div className="bg-gradient-to-br from-slate-500 to-slate-600 rounded-xl p-4 text-white">
-    <div className="text-2xl font-bold">{stats.total}</div>
-    <div className="text-sm opacity-80">Total Shops</div>
-  </div>
-  <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
-    <div className="text-2xl font-bold">{stats.active}</div>
-    <div className="text-sm opacity-80">Active</div>
-  </div>
-  <div className="bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl p-4 text-white">
-    <div className="text-2xl font-bold">{stats.inactive}</div>
-    <div className="text-sm opacity-80">Inactive</div>
-  </div>
-  <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
-    <div className="text-2xl font-bold">{stats.cmz}</div>
-    <div className="text-sm opacity-80">CMZ</div>
-  </div>
-  <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl p-4 text-white">
-    <div className="text-2xl font-bold">{stats.cs}</div>
-    <div className="text-sm opacity-80">CS</div>
-  </div>
-</div>
-
-
-      {/* Filters */}
-      <div className="flex flex-wrap gap-4">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search shops..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm">Total Shops</p>
+              <p className="text-3xl font-bold">{stats.total}</p>
+            </div>
+            <Store className="w-10 h-10 text-blue-200" />
+          </div>
         </div>
-        <select
-          value={companyFilter}
-          onChange={e => setCompanyFilter(e.target.value as 'all' | ShopCompany)}
-          className="px-4 py-2 border border-gray-200 rounded-lg"
-        >
-          <option value="all">All Companies</option>
-          <option value="CMZ">CMZ</option>
-          <option value="CS">CS</option>
-        </select>
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-          className="px-4 py-2 border border-gray-200 rounded-lg"
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </select>
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm">Active</p>
+              <p className="text-3xl font-bold">{stats.active}</p>
+            </div>
+            <ToggleRight className="w-10 h-10 text-green-200" />
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm">CMZ</p>
+              <p className="text-3xl font-bold">{stats.cmz}</p>
+            </div>
+            <Store className="w-10 h-10 text-purple-200" />
+          </div>
+        </div>
+        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-amber-100 text-sm">CS</p>
+              <p className="text-3xl font-bold">{stats.cs}</p>
+            </div>
+            <Store className="w-10 h-10 text-amber-200" />
+          </div>
+        </div>
       </div>
 
-      {/* Shops Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredShops.map(shop => (
-          <div
-            key={shop.id}
-            className={`bg-white rounded-xl border-l-4 ${
-  shop.company === 'CMZ' 
-    ? 'border-l-blue-500 border-gray-200' 
-    : 'border-l-emerald-500 border-gray-200'
-} ${!shop.isActive ? 'opacity-60' : ''} overflow-hidden hover:shadow-lg transition-shadow`}
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex-1 min-w-64">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search shops..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {(['all', 'CMZ', 'CS'] as const).map(filter => (
+            <button
+              key={filter}
+              onClick={() => setCompanyFilter(filter)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                companyFilter === filter
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {filter === 'all' ? 'All' : filter}
+            </button>
+          ))}
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+            className="w-4 h-4 text-blue-600 rounded"
+          />
+          <span className="text-sm text-gray-600">Show inactive</span>
+        </label>
+      </div>
 
-          >
-            {/* Card Header */}
-            <div className="p-4 border-b border-gray-100">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${
-                    shop.company === 'CMZ' ? 'bg-blue-100' : 'bg-emerald-100'
-                  }`}>
-                    <Store className={`w-5 h-5 ${
-                      shop.company === 'CMZ' ? 'text-blue-600' : 'text-emerald-600'
-                    }`} />
+      {/* Shop Grid */}
+      {filteredShops.length === 0 ? (
+        <div className="text-center py-12">
+          <Store className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No shops found</h3>
+          <p className="text-gray-600">
+            {searchTerm || companyFilter !== 'all'
+              ? 'Try adjusting your search or filters'
+              : 'Add your first shop to get started'}
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredShops.map(shop => (
+            <div
+              key={shop.id}
+              className={`bg-white rounded-xl border shadow-sm overflow-hidden transition-all hover:shadow-md ${
+                !shop.isActive ? 'opacity-60' : ''
+              }`}
+            >
+              {/* Shop Header */}
+              <div className={`p-4 ${
+                shop.company === 'CMZ' 
+                  ? 'bg-gradient-to-r from-purple-500 to-purple-600' 
+                  : 'bg-gradient-to-r from-amber-500 to-amber-600'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                      <Store className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-white">{shop.name}</h3>
+                      <span className="text-xs text-white/80">{shop.company}</span>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{shop.name}</h3>
-                    <span className={`inline-block px-2 py-0.5 text-xs rounded-full ${
-                      shop.company === 'CMZ'
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-emerald-100 text-emerald-700'
-                    }`}>
-                      {shop.company}
-                    </span>
-                  </div>
+                  <button
+                    onClick={() => handleToggleActive(shop)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      shop.isActive 
+                        ? 'bg-white/20 text-white hover:bg-white/30' 
+                        : 'bg-red-500/20 text-red-100 hover:bg-red-500/30'
+                    }`}
+                  >
+                    {shop.isActive ? (
+                      <ToggleRight className="w-5 h-5" />
+                    ) : (
+                      <ToggleLeft className="w-5 h-5" />
+                    )}
+                  </button>
                 </div>
+              </div>
+
+              {/* Shop Details */}
+              <div className="p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <Clock className="w-4 h-4" />
+                  <span>{shop.openTime || '06:30'} - {shop.closeTime || '21:30'}</span>
+                </div>
+                
+                {shop.address && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <MapPin className="w-4 h-4" />
+                    <span className="truncate">{shop.address}</span>
+                  </div>
+                )}
+
+                {shop.phone && (
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Phone className="w-4 h-4" />
+                    <span>{shop.phone}</span>
+                  </div>
+                )}
+
+                {/* Weekly staffing summary */}
+                {shop.requirements && shop.requirements.length > 0 && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                      <Users className="w-4 h-4" />
+                      <span>Weekly staffing</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {shop.requirements.slice(0, 7).map((req, i) => (
+                        <div
+                          key={i}
+                          className="flex-1 text-center py-1 bg-gray-50 rounded text-xs"
+                          title={`${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i]}: ${req.amStaff || 0}AM / ${req.pmStaff || 0}PM`}
+                        >
+                          <div className="font-medium text-gray-700">
+                            {(req.amStaff || 0) + (req.pmStaff || 0)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
                 <button
-                  onClick={() => handleToggleActive(shop)}
-                  className={`p-1 rounded-lg transition-colors ${
-                    shop.isActive ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'
-                  }`}
-                  title={shop.isActive ? 'Active - Click to deactivate' : 'Inactive - Click to activate'}
+                  onClick={() => setEditingShop(shop)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 >
-                  {shop.isActive ? (
-                    <ToggleRight className="w-6 h-6" />
-                  ) : (
-                    <ToggleLeft className="w-6 h-6" />
-                  )}
+                  <Edit2 className="w-4 h-4" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDeleteShop(shop.id)}
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
                 </button>
               </div>
             </div>
-
-            {/* Card Body */}
-            <div className="p-4 space-y-3">
-              {shop.address && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MapPin className="w-4 h-4 text-gray-400" />
-                  {shop.address}
-                </div>
-              )}
-              {shop.phone && (
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Phone className="w-4 h-4 text-gray-400" />
-                  {shop.phone}
-                </div>
-              )}
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Clock className="w-4 h-4 text-gray-400" />
-                {shop.openTime || '06:30'} - {shop.closeTime || '21:30'}
-              </div>
-
-              {/* Quick Stats */}
-              <div className="flex gap-4 pt-2">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-900">
-                    {shop.assignedEmployees?.length || 0}
-                  </div>
-                  <div className="text-xs text-gray-500">Assigned</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-900">
-                    {shop.requirements?.reduce((sum, r) => sum + (r.amStaff || 0) + (r.pmStaff || 0), 0) || 0}
-                  </div>
-                  <div className="text-xs text-gray-500">Weekly Shifts</div>
-                </div>
-                {shop.canBeSolo && (
-                  <div className="text-center">
-                    <div className="text-lg font-semibold text-amber-600">Solo</div>
-                    <div className="text-xs text-gray-500">Capable</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Scheduling indicators */}
-              <div className="flex flex-wrap gap-2 pt-2">
-                {shop.trimming?.enabled && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">
-                    <Scissors className="w-3 h-3" />
-                    Trimming
-                  </span>
-                )}
-                {shop.sunday?.closed && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">
-                    <Sun className="w-3 h-3" />
-                    Closed Sun
-                  </span>
-                )}
-                {shop.sunday?.maxStaff && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 text-xs rounded-full">
-                    <Sun className="w-3 h-3" />
-                    Sun Max: {shop.sunday.maxStaff}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Card Actions */}
-            <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex justify-end gap-2">
-              <button
-                onClick={() => setEditingShop(shop)}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              >
-                <Edit2 className="w-4 h-4" />
-                Edit
-              </button>
-              <button
-                onClick={() => handleDeleteShop(shop.id)}
-                className="flex items-center gap-1 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Empty State */}
-      {filteredShops.length === 0 && (
-        <div className="text-center py-12">
-          <Store className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">No shops found</p>
-          <p className="text-sm text-gray-500">Try adjusting your filters or add a new shop</p>
+          ))}
         </div>
       )}
 
-      {/* Modals */}
+      {/* Add/Edit Modal */}
       {(showAddModal || editingShop) && (
         <ShopFormModal
           shop={editingShop}

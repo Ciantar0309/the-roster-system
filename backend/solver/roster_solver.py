@@ -132,6 +132,26 @@ class ShopConfig:
 
 DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
+# Short day name mapping
+DAY_NAME_MAP = {
+    'mon': 0, 'monday': 0,
+    'tue': 1, 'tuesday': 1,
+    'wed': 2, 'wednesday': 2,
+    'thu': 3, 'thursday': 3,
+    'fri': 4, 'friday': 4,
+    'sat': 5, 'saturday': 5,
+    'sun': 6, 'sunday': 6
+}
+
+def normalize_day_name(day: str) -> str:
+    """Convert any day format to full lowercase name"""
+    day_lower = day.lower().strip()
+    idx = DAY_NAME_MAP.get(day_lower)
+    if idx is not None:
+        return DAYS_OF_WEEK[idx]
+    return day_lower
+
+
 # Hours and penalties
 STANDARD_SHIFT_HOURS = 7.5
 MIN_SHIFT_HOURS = 4.0
@@ -327,7 +347,7 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
             # Get day requirements
             day_req = None
             for req in config.requirements:
-                if req.get('day', '').lower() == day_name:
+                if normalize_day_name(req.get('day', '')) == day_name:
                     day_req = req
                     break
             
@@ -445,7 +465,7 @@ def build_demands_from_config(shops: List[Dict]) -> List[DemandEntry]:
             # Get day requirements
             day_req = None
             for req in config.requirements:
-                if req.get('day', '').lower() == day_name:
+                if normalize_day_name(req.get('day', '')) == day_name:
                     day_req = req
                     break
             
