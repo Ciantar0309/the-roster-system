@@ -39,8 +39,11 @@ export function initializeDatabase() {
       fixedDaysOff TEXT DEFAULT '[]',
       specialDayRules TEXT DEFAULT '[]',
       specialRequests TEXT DEFAULT '[]',
+      assignedEmployees TEXT DEFAULT '[]',
+      rules TEXT,
       trimming TEXT DEFAULT '{"enabled":false,"trimAM":true,"trimPM":false,"minShiftHours":4,"trimFromStart":1,"trimFromEnd":2,"trimWhenMoreThan":2}',
       sunday TEXT DEFAULT '{"closed":false,"maxStaff":null,"customHours":{"enabled":false,"openTime":"08:00","closeTime":"13:00"}}',
+      staffingConfig TEXT,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP
     )
@@ -55,7 +58,7 @@ export function initializeDatabase() {
       phone TEXT,
       company TEXT DEFAULT 'CMZ',
       employmentType TEXT DEFAULT 'full-time',
-      role TEXT DEFAULT 'barista',
+      role TEXT DEFAULT 'staff',
       weeklyHours INTEGER DEFAULT 40,
       primaryShopId INTEGER,
       secondaryShopIds TEXT DEFAULT '[]',
@@ -63,10 +66,19 @@ export function initializeDatabase() {
       startDate TEXT,
       profilePhoto TEXT,
       payScaleId TEXT,
-      allowances TEXT DEFAULT '[]',
+      allowanceIds TEXT DEFAULT '[]',
       emergencyContact TEXT,
       emergencyPhone TEXT,
       notes TEXT,
+      excludeFromRoster INTEGER DEFAULT 0,
+      hasSystemAccess INTEGER DEFAULT 0,
+      systemRole TEXT,
+      idNumber TEXT,
+      taxNumber TEXT,
+      ssnNumber TEXT,
+      tcnNumber TEXT,
+      tcnExpiry TEXT,
+      iban TEXT,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (primaryShopId) REFERENCES shops(id)
@@ -76,16 +88,21 @@ export function initializeDatabase() {
   // Create shifts table
   db.exec(`
     CREATE TABLE IF NOT EXISTS shifts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       employeeId INTEGER NOT NULL,
+      employeeName TEXT,
       shopId INTEGER NOT NULL,
+      shopName TEXT,
       date TEXT NOT NULL,
       startTime TEXT NOT NULL,
       endTime TEXT NOT NULL,
+      hours REAL DEFAULT 0,
       shiftType TEXT DEFAULT 'AM',
       status TEXT DEFAULT 'scheduled',
       notes TEXT,
       isTrimmed INTEGER DEFAULT 0,
+      company TEXT,
+      weekStart TEXT,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       updatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (employeeId) REFERENCES employees(id),
@@ -96,7 +113,7 @@ export function initializeDatabase() {
   // Create leave_requests table
   db.exec(`
     CREATE TABLE IF NOT EXISTS leave_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       employeeId INTEGER NOT NULL,
       startDate TEXT NOT NULL,
       endDate TEXT NOT NULL,
@@ -106,6 +123,7 @@ export function initializeDatabase() {
       reviewedBy INTEGER,
       reviewedAt TEXT,
       reviewNotes TEXT,
+      submittedAt TEXT,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (employeeId) REFERENCES employees(id),
       FOREIGN KEY (reviewedBy) REFERENCES employees(id)
@@ -115,29 +133,31 @@ export function initializeDatabase() {
   // Create swap_requests table
   db.exec(`
     CREATE TABLE IF NOT EXISTS swap_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       requesterId INTEGER NOT NULL,
-      targetId INTEGER NOT NULL,
-      requesterShiftId INTEGER NOT NULL,
-      targetShiftId INTEGER NOT NULL,
+      targetEmployeeId INTEGER,
+      requesterShiftId TEXT,
+      targetShiftId TEXT,
       status TEXT DEFAULT 'pending',
       reason TEXT,
+      reviewedBy INTEGER,
+      reviewedAt TEXT,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (requesterId) REFERENCES employees(id),
-      FOREIGN KEY (targetId) REFERENCES employees(id),
-      FOREIGN KEY (requesterShiftId) REFERENCES shifts(id),
-      FOREIGN KEY (targetShiftId) REFERENCES shifts(id)
+      FOREIGN KEY (targetEmployeeId) REFERENCES employees(id)
     )
   `);
 
   // Create profile_updates table
   db.exec(`
     CREATE TABLE IF NOT EXISTS profile_updates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id TEXT PRIMARY KEY,
       employeeId INTEGER NOT NULL,
-      field TEXT NOT NULL,
+      employeeName TEXT,
+      field TEXT,
       oldValue TEXT,
       newValue TEXT,
+      changes TEXT,
       status TEXT DEFAULT 'pending',
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (employeeId) REFERENCES employees(id)
@@ -152,7 +172,8 @@ export function initializeDatabase() {
       hourlyRate REAL NOT NULL,
       overtimeMultiplier REAL DEFAULT 1.5,
       weekendMultiplier REAL DEFAULT 1.25,
-      holidayMultiplier REAL DEFAULT 2.0
+      holidayMultiplier REAL DEFAULT 2.0,
+      company TEXT
     )
   `);
 
@@ -161,23 +182,57 @@ export function initializeDatabase() {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
-      passwordHash TEXT NOT NULL,
+      password TEXT NOT NULL,
       employeeId INTEGER,
-      role TEXT DEFAULT 'barista',
+      role TEXT DEFAULT 'employee',
+      isActive INTEGER DEFAULT 1,
+      inviteToken TEXT,
+      inviteExpires TEXT,
       lastLogin TEXT,
       createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (employeeId) REFERENCES employees(id)
     )
   `);
 
-  // Run migrations for new columns
+  // Run migrations for new columns on existing tables
   addColumnIfNotExists('shops', 'specialShifts', 'TEXT', "'[]'");
   addColumnIfNotExists('shops', 'fixedDaysOff', 'TEXT', "'[]'");
   addColumnIfNotExists('shops', 'specialDayRules', 'TEXT', "'[]'");
   addColumnIfNotExists('shops', 'specialRequests', 'TEXT', "'[]'");
+  addColumnIfNotExists('shops', 'assignedEmployees', 'TEXT', "'[]'");
+  addColumnIfNotExists('shops', 'rules', 'TEXT', 'NULL');
   addColumnIfNotExists('shops', 'trimming', 'TEXT', `'{"enabled":false,"trimAM":true,"trimPM":false,"minShiftHours":4,"trimFromStart":1,"trimFromEnd":2,"trimWhenMoreThan":2}'`);
   addColumnIfNotExists('shops', 'sunday', 'TEXT', `'{"closed":false,"maxStaff":null,"customHours":{"enabled":false,"openTime":"08:00","closeTime":"13:00"}}'`);
+  addColumnIfNotExists('shops', 'staffingConfig', 'TEXT', 'NULL');
+  
   addColumnIfNotExists('shifts', 'isTrimmed', 'INTEGER', '0');
+  addColumnIfNotExists('shifts', 'hours', 'REAL', '0');
+  addColumnIfNotExists('shifts', 'employeeName', 'TEXT', 'NULL');
+  addColumnIfNotExists('shifts', 'shopName', 'TEXT', 'NULL');
+  addColumnIfNotExists('shifts', 'company', 'TEXT', 'NULL');
+  addColumnIfNotExists('shifts', 'weekStart', 'TEXT', 'NULL');
+
+  addColumnIfNotExists('employees', 'excludeFromRoster', 'INTEGER', '0');
+  addColumnIfNotExists('employees', 'hasSystemAccess', 'INTEGER', '0');
+  addColumnIfNotExists('employees', 'systemRole', 'TEXT', 'NULL');
+  addColumnIfNotExists('employees', 'allowanceIds', 'TEXT', "'[]'");
+  addColumnIfNotExists('employees', 'idNumber', 'TEXT', 'NULL');
+  addColumnIfNotExists('employees', 'taxNumber', 'TEXT', 'NULL');
+  addColumnIfNotExists('employees', 'ssnNumber', 'TEXT', 'NULL');
+  addColumnIfNotExists('employees', 'tcnNumber', 'TEXT', 'NULL');
+  addColumnIfNotExists('employees', 'tcnExpiry', 'TEXT', 'NULL');
+  addColumnIfNotExists('employees', 'iban', 'TEXT', 'NULL');
+
+  addColumnIfNotExists('users', 'inviteToken', 'TEXT', 'NULL');
+  addColumnIfNotExists('users', 'inviteExpires', 'TEXT', 'NULL');
+  addColumnIfNotExists('users', 'isActive', 'INTEGER', '1');
+
+  addColumnIfNotExists('pay_scales', 'company', 'TEXT', 'NULL');
+
+  addColumnIfNotExists('leave_requests', 'submittedAt', 'TEXT', 'NULL');
+
+  addColumnIfNotExists('profile_updates', 'employeeName', 'TEXT', 'NULL');
+  addColumnIfNotExists('profile_updates', 'changes', 'TEXT', 'NULL');
 
   console.log('Database initialized successfully');
 }
