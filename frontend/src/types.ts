@@ -206,8 +206,13 @@ export type CoverageMode = 'split' | 'flexible' | 'fullDayOnly';
 
 export interface DayStaffingConfig {
   day: string;  // 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+  // MINIMUM - Hard constraint (never go below)
   minAM: number;
   minPM: number;
+  // TARGET - Soft constraint (try to reach, penalize shortfall)
+  targetAM: number;
+  targetPM: number;
+  // Other settings
   minFullDay: number;
   maxStaff: number;
   isMandatory: boolean;
@@ -215,36 +220,24 @@ export interface DayStaffingConfig {
 
 export interface StaffingConfig {
   coverageMode: CoverageMode;
-  minimumStaff: {
-    atOpening: number;
-    atClosing: number;
-  };
   weeklySchedule: DayStaffingConfig[];
-  rules: {
-    fullDayCountsAsBoth: boolean;
-    neverBelowMinimum: boolean;
-  };
+  fullDayCountsAsBoth: boolean;
+  neverBelowMinimum: boolean;
 }
 
 export const DEFAULT_STAFFING_CONFIG: StaffingConfig = {
   coverageMode: 'flexible',
-  minimumStaff: {
-    atOpening: 1,
-    atClosing: 1,
-  },
   weeklySchedule: [
-    { day: 'Mon', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
-    { day: 'Tue', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
-    { day: 'Wed', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
-    { day: 'Thu', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
-    { day: 'Fri', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
-    { day: 'Sat', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 3, isMandatory: false },
-    { day: 'Sun', minAM: 1, minPM: 1, minFullDay: 0, maxStaff: 2, isMandatory: false },
+    { day: 'Mon', minAM: 1, minPM: 1, targetAM: 1, targetPM: 1, minFullDay: 0, maxStaff: 10, isMandatory: false },
+    { day: 'Tue', minAM: 1, minPM: 1, targetAM: 1, targetPM: 1, minFullDay: 0, maxStaff: 10, isMandatory: false },
+    { day: 'Wed', minAM: 1, minPM: 1, targetAM: 1, targetPM: 1, minFullDay: 0, maxStaff: 10, isMandatory: false },
+    { day: 'Thu', minAM: 1, minPM: 1, targetAM: 1, targetPM: 1, minFullDay: 0, maxStaff: 10, isMandatory: false },
+    { day: 'Fri', minAM: 1, minPM: 1, targetAM: 1, targetPM: 1, minFullDay: 0, maxStaff: 10, isMandatory: false },
+    { day: 'Sat', minAM: 1, minPM: 1, targetAM: 1, targetPM: 1, minFullDay: 0, maxStaff: 10, isMandatory: false },
+    { day: 'Sun', minAM: 1, minPM: 1, targetAM: 1, targetPM: 1, minFullDay: 0, maxStaff: 10, isMandatory: false },
   ],
-  rules: {
-    fullDayCountsAsBoth: true,
-    neverBelowMinimum: true,
-  },
+  fullDayCountsAsBoth: true,
+  neverBelowMinimum: true,
 };
 
 // ============================================
@@ -395,7 +388,6 @@ export interface Shop {
   sunday?: SundayConfig;
   specialRequests?: SpecialShift[];
   rules?: ShopRules;
-  // NEW: Staffing configuration for roster generator
   staffingConfig?: StaffingConfig;
 }
 
