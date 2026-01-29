@@ -236,6 +236,10 @@ def solve_roster():
                 'sunday': shop_data.get('sunday', {})
             }
         
+        # DEBUG: Check what staffingConfig looks like
+        print(f"\n[DEBUG] First shop staffingConfig: {raw_shops[0].get('staffingConfig')}")
+        print(f"[DEBUG] Type: {type(raw_shops[0].get('staffingConfig'))}")
+
         # Build templates and demands from shop config
         templates, special_demands = build_templates_from_config(raw_shops)
         demands = build_demands_from_config(raw_shops)
