@@ -1,19 +1,19 @@
 # backend/routes/roster_solve.py
 """
-Flask route for roster solving API - FIXED VERSION
+Flask route for roster solving API - FIXED VERSION v2
 """
 
 from flask import Blueprint, request, jsonify
 import sys
 import os
 import traceback
+import json
 
 # Add paths for imports
 ROUTES_DIR = os.path.dirname(os.path.abspath(__file__))
 BACKEND_DIR = os.path.dirname(ROUTES_DIR)
 SOLVER_DIR = os.path.join(BACKEND_DIR, 'solver')
 
-# Add solver directory to path so we can import roster_solver directly
 sys.path.insert(0, SOLVER_DIR)
 
 from roster_solver import (
@@ -26,28 +26,29 @@ from roster_solver import (
     build_demands_from_config,
     load_shop_config,
     DAYS_OF_WEEK,
-    DAY_NAME_MAP
+    DAY_NAME_MAP,
+    get_day_index
 )
 
 roster_solve_bp = Blueprint('roster_solve', __name__)
+
+
+def safe_json_parse(value, default):
+    """Safely parse JSON string or return value if already parsed"""
+    if value is None:
+        return default
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except:
+            return default
+    return value
 
 
 @roster_solve_bp.route('/api/roster/solve', methods=['POST'])
 def solve_roster():
     """
     POST /api/roster/solve
-    
-    Request body:
-    {
-        weekStart: "2026-01-26",
-        employees: [...],
-        shops: [...],
-        shopRequirements: {...},
-        excludedEmployeeIds: [31],
-        amOnlyEmployees: ["Joseph"],
-        fixedDaysOff: {...},
-        previousWeekSundayShifts: [...]
-    }
     """
     try:
         data = request.get_json()
@@ -55,7 +56,6 @@ def solve_roster():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
         
-        # Required fields
         week_start = data.get('weekStart')
         raw_employees = data.get('employees', [])
         raw_shops = data.get('shops', [])
@@ -64,8 +64,8 @@ def solve_roster():
             return jsonify({'error': 'weekStart is required'}), 400
         
         # Optional fields
-        excluded_ids = set(data.get('excludedEmployeeIds', [31]))
-        am_only_names = set(data.get('amOnlyEmployees', ['Joseph']))
+        excluded_ids = set(data.get('excludedEmployeeIds', []))
+        am_only_names = set(data.get('amOnlyEmployees', []))
         fixed_days_off_raw = data.get('fixedDaysOff', {})
         previous_sunday_shifts = data.get('previousWeekSundayShifts', [])
         
@@ -73,10 +73,19 @@ def solve_roster():
         print(f"ROSTER SOLVE REQUEST")
         print(f"{'='*60}")
         print(f"Week Start: {week_start}")
-        print(f"Employees: {len(raw_employees)}")
-        print(f"Shops: {len(raw_shops)}")
-        print(f"Excluded IDs: {excluded_ids}")
-        print(f"AM-Only: {am_only_names}")
+        print(f"Employees received: {len(raw_employees)}")
+        print(f"Shops received: {len(raw_shops)}")
+        
+        # Parse JSON fields in shops
+        parsed_shops = []
+        for shop in raw_shops:
+            parsed_shop = dict(shop)
+            for field in ['staffingConfig', 'assignedEmployees', 'requirements', 'specialShifts', 'trimming', 'sunday', 'rules', 'fixedDaysOff', 'specialDayRules']:
+                if field in parsed_shop:
+                    parsed_shop[field] = safe_json_parse(parsed_shop[field], [] if field in ['assignedEmployees', 'requirements', 'specialShifts', 'fixedDaysOff', 'specialDayRules'] else {})
+            parsed_shops.append(parsed_shop)
+        
+        raw_shops = parsed_shops
         
         # Build Employee objects
         employees = []
@@ -92,21 +101,18 @@ def solve_roster():
             emp_name = emp_data.get('name', '')
             is_am_only = emp_name in am_only_names
             
-            # Parse secondaryShopIds - handle both string and array
-            secondary_shop_ids = emp_data.get('secondaryShopIds', [])
-            if isinstance(secondary_shop_ids, str):
-                import json
-                try:
-                    secondary_shop_ids = json.loads(secondary_shop_ids)
-                except:
-                    secondary_shop_ids = []
+            secondary_shop_ids = safe_json_parse(emp_data.get('secondaryShopIds'), [])
+            
+            weekly_hours = emp_data.get('weeklyHours', 40)
+            if not weekly_hours or weekly_hours <= 0:
+                continue
             
             employees.append(Employee(
                 id=emp_id,
                 name=emp_name,
                 company=emp_data.get('company', 'CMZ'),
                 employment_type=emp_data.get('employmentType', 'full-time'),
-                weekly_hours=emp_data.get('weeklyHours', 40),
+                weekly_hours=weekly_hours,
                 is_active=True,
                 am_only=is_am_only,
                 primary_shop_id=emp_data.get('primaryShopId'),
@@ -121,22 +127,22 @@ def solve_roster():
             shop_id = shop_data.get('id')
             assigned = shop_data.get('assignedEmployees', [])
             
+            # Already parsed above, but double-check
             if isinstance(assigned, str):
-                import json
-                try:
-                    assigned = json.loads(assigned)
-                except:
-                    assigned = []
+                assigned = safe_json_parse(assigned, [])
             
+            if not assigned:
+                continue
+                
             for emp_data in assigned:
                 if isinstance(emp_data, dict):
-                    # Could be {employeeId: X} or {id: X}
-                    emp_id = emp_data.get('employeeId') or emp_data.get('id')
+                    emp_id = emp_data.get('id') or emp_data.get('employeeId')
+                    is_primary = emp_data.get('isPrimary', False)
                 else:
                     emp_id = emp_data
+                    is_primary = False
                     
                 if emp_id and emp_id not in excluded_ids:
-                    # Check if assignment already exists
                     exists = any(
                         a.employee_id == emp_id and a.shop_id == shop_id 
                         for a in assignments
@@ -145,13 +151,12 @@ def solve_roster():
                         assignments.append(ShopAssignment(
                             employee_id=emp_id,
                             shop_id=shop_id,
-                            is_primary=False
+                            is_primary=is_primary
                         ))
         
-        # Also build assignments from employee primaryShopId and secondaryShopIds
+        # Also add assignments from employee primaryShopId and secondaryShopIds
         for emp in employees:
             if emp.primary_shop_id:
-                # Check if this assignment already exists
                 exists = any(
                     a.employee_id == emp.id and a.shop_id == emp.primary_shop_id 
                     for a in assignments
@@ -178,16 +183,7 @@ def solve_roster():
         
         print(f"Shop assignments: {len(assignments)}")
         
-        # Debug: show some assignments
-        if assignments:
-            print(f"  Sample assignments:")
-            for a in assignments[:5]:
-                emp = next((e for e in employees if e.id == a.employee_id), None)
-                shop = next((s for s in raw_shops if s.get('id') == a.shop_id), None)
-                if emp and shop:
-                    print(f"    - {emp.name} -> {shop.get('name')} (primary={a.is_primary})")
-        
-        # Build LeaveRequest objects (from employees or separate endpoint)
+        # Build LeaveRequest objects
         leave_requests = []
         for emp_data in raw_employees:
             emp_leaves = emp_data.get('leaveRequests', [])
@@ -211,17 +207,13 @@ def solve_roster():
                 if isinstance(day, int):
                     day_indices.append(day)
                 elif isinstance(day, str):
-                    day_lower = day.lower()
-                    # Check full name first
-                    if day_lower in DAYS_OF_WEEK:
-                        day_indices.append(DAYS_OF_WEEK.index(day_lower))
-                    # Check short name
-                    elif day_lower in DAY_NAME_MAP:
-                        day_indices.append(DAY_NAME_MAP[day_lower])
+                    idx = get_day_index(day)
+                    day_indices.append(idx)
             if day_indices:
                 fixed_days_off[emp_key_lower] = day_indices
         
-        print(f"Fixed days off: {fixed_days_off}")
+        if fixed_days_off:
+            print(f"Fixed days off: {fixed_days_off}")
         
         # Build shop configs
         shop_configs = {}
@@ -267,14 +259,13 @@ def solve_roster():
             shop_configs=shop_configs
         )
         
-        result = solver.solve(time_limit_seconds=90)
+        result = solver.solve(time_limit_seconds=120)
         
         return jsonify(result)
         
     except Exception as e:
         print(f"\nSOLVER ERROR:")
         traceback.print_exc()
-        print("="*50)
         
         return jsonify({
             'success': False,
