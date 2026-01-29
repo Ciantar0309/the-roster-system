@@ -4,6 +4,7 @@ import db, { initializeDatabase } from './database';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendInviteEmail, sendLeaveStatusEmail, sendSwapStatusEmail } from './email';
+import fetch from 'node-fetch';  // Or use native fetch in Node 18+
 
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rosterpro-secret-key-change-in-production';
@@ -1014,6 +1015,78 @@ app.post('/api/auth/change-password', async (req, res) => {
     res.status(500).json({ error: 'Failed to change password' });
   }
 });
+//Proxy to Python solver
+app.post('/api/roster/solve', async (req, res) => {
+  try {
+    console.log('Proxying roster solve request to Python solver...');
+    
+    // Get data from Express DB
+    const shops = db.prepare('SELECT * FROM shops WHERE isActive = 1').all();
+    const employees = db.prepare('SELECT * FROM employees').all();
+    const leaves = db.prepare("SELECT * FROM leave_requests WHERE status = 'approved'").all();
+    
+    // Parse JSON fields in shops
+    const parsedShops = shops.map((shop: any) => ({
+      ...shop,
+      isActive: Boolean(shop.isActive),
+      canBeSolo: Boolean(shop.canBeSolo),
+      requirements: shop.requirements ? JSON.parse(shop.requirements) : [],
+      specialRequests: shop.specialRequests ? JSON.parse(shop.specialRequests) : [],
+      fixedDaysOff: shop.fixedDaysOff ? JSON.parse(shop.fixedDaysOff) : [],
+      specialDayRules: shop.specialDayRules ? JSON.parse(shop.specialDayRules) : [],
+      assignedEmployees: shop.assignedEmployees ? JSON.parse(shop.assignedEmployees) : [],
+      rules: shop.rules ? JSON.parse(shop.rules) : null,
+      specialShifts: shop.specialShifts ? JSON.parse(shop.specialShifts) : [],
+      trimming: shop.trimming ? JSON.parse(shop.trimming) : null,
+      sunday: shop.sunday ? JSON.parse(shop.sunday) : null,
+      staffingConfig: shop.staffingConfig ? JSON.parse(shop.staffingConfig) : null
+    }));
+    
+    // Parse JSON fields in employees
+    const parsedEmployees = employees.map((emp: any) => ({
+      ...emp,
+      excludeFromRoster: Boolean(emp.excludeFromRoster),
+      allowanceIds: emp.allowanceIds ? JSON.parse(emp.allowanceIds) : [],
+      secondaryShopIds: emp.secondaryShopIds ? JSON.parse(emp.secondaryShopIds) : []
+    }));
+    
+    // Build request payload
+    const payload = {
+      weekStart: req.body.weekStart,
+      employees: parsedEmployees,
+      shops: parsedShops,
+      leaveRequests: leaves,
+      excludedEmployeeIds: req.body.excludedEmployeeIds || [],
+      amOnlyEmployees: req.body.amOnlyEmployees || [],
+      fixedDaysOff: req.body.fixedDaysOff || {},
+      previousWeekSundayShifts: req.body.previousWeekSundayShifts || []
+    };
+    
+    console.log(`Sending to Python solver: ${parsedShops.length} shops, ${parsedEmployees.length} employees`);
+    
+    // Call Python solver
+    const solverResponse = await fetch('http://127.0.0.1:3002/api/roster/solve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    const result = await solverResponse.json();
+    
+    console.log(`Solver response: ${result.status}, ${result.shifts?.length || 0} shifts`);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Error calling Python solver:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate roster',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      shifts: [],
+      hours: {}
+    });
+  }
+});
+
 // ============== INVITE SYSTEM ==============
 
 // Generate invite for employee
