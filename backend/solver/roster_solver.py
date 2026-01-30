@@ -823,10 +823,19 @@ class RosterSolver:
             print(f"  {shop_name} {day_name}: min={demand.min_am}AM/{demand.min_pm}PM, solo={is_solo}, fullMax=2")
             
             if is_solo:
-                # Solo shop: at least 1 person (prefer FULL)
-                all_vars = am_vars + pm_vars + full_vars
-                if all_vars:
-                    self.model.Add(sum(all_vars) >= 1)
+                # Solo shop: need FULL day coverage
+                # Either 1 FULL shift, OR both AM and PM
+                if full_vars:
+                    # AM coverage = AM shifts + FULL shifts
+                    self.model.Add(sum(am_vars) + sum(full_vars) >= 1)
+                    # PM coverage = PM shifts + FULL shifts
+                    self.model.Add(sum(pm_vars) + sum(full_vars) >= 1)
+                else:
+                    # No FULL option - need both AM and PM
+                    if am_vars:
+                        self.model.Add(sum(am_vars) >= 1)
+                    if pm_vars:
+                        self.model.Add(sum(pm_vars) >= 1)
             else:
                 # Non-solo: must have AM and PM coverage
                 if am_coverage and demand.min_am > 0:

@@ -1532,7 +1532,7 @@ function RosterView({ shops, employees, shifts, setShifts, leaveRequests }: Rost
         excludedEmployeeIds: [31]
       };
       
-      const response = await fetch('http://localhost:3002/api/roster/solve', {
+      const response = await fetch('http://localhost:3001/api/roster/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(solverPayload)

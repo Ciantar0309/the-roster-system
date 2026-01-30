@@ -32,16 +32,19 @@ from roster_solver import (
 roster_solve_bp = Blueprint('roster_solve', __name__)
 
 
-def safe_json_parse(value, default):
-    """Safely parse JSON string or return as-is if already parsed"""
+def safe_json_parse(value, default=None):
+    """Safely parse JSON, handling strings, dicts, and None"""
     if value is None:
         return default
+    if isinstance(value, dict) or isinstance(value, list):
+        return value  # Already parsed!
     if isinstance(value, str):
         try:
             return json.loads(value)
         except:
             return default
-    return value
+    return default
+
 
 
 @roster_solve_bp.route('/api/roster/solve', methods=['POST'])
