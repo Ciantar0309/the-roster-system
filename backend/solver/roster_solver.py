@@ -1,24 +1,38 @@
 # backend/solver/roster_solver.py
 """
-ROSTERPRO v31.0 - Overtime-Enabled Config-Driven Roster Solver
-===============================================================
+ROSTERPRO v32.0 - Pattern-Based Roster Solver
+==============================================
 
-KEY BEHAVIORS:
-- Staffing requirements (minAM/minPM) = HARD CONSTRAINT (must be met)
-- Employee weekly hours = SOFT CONSTRAINT (overtime allowed, lightly penalized)
-- Student 20h/week = HARD CONSTRAINT (legal requirement)
-- 1 day off per week = HARD CONSTRAINT (labor law)
-- 1 shift per day per person = HARD CONSTRAINT (can't be in two places)
+Based on Deli Roster Scheduler Spec v1.1
 
-COVERAGE MODES:
-1. SPLIT: Only AM + PM shifts allowed (no FULL)
-2. FLEXIBLE: Solver decides optimal mix of AM, PM, FULL
-3. FULL_DAY_ONLY: Only FULL shifts (solo coverage)
+COVERAGE PATTERNS:
+  PatternA    = { AM:3, PM:2, FULL:0 }  - Busy shops
+  PatternB    = { AM:1, PM:1, FULL:1 }  - Mixed
+  PatternSolo = { AM:0, PM:0, FULL:1 }  - Solo shops only
 
-CONSTRAINT LEVELS:
-- HARD (minimum): Never go below minAM/minPM - solver MUST satisfy
-- SOFT (target): Try to reach targetAM/targetPM - penalized if not met
-- SPECIAL REQUESTS: HARD constraint - employee MUST work specified shift
+HARD CONSTRAINTS:
+  C1: Employee.company == Shop.company
+  C2: Main-shop priority before secondary use
+  C3: Weekly hours: target <= actual <= target + OT_CAP (10h)
+  C4: Honour all Special Requests
+  C5: Maria is never rostered
+  C6: Hamrun, Carters, Fgura -> PatternSolo NOT permitted
+  C7: <= 2 FULL-day people per shop/day
+  C8: No split shift unless Special Request asks
+  C9: Trimming rules respected
+
+SOFT GOALS:
+  G1: Minimize overtime total
+  G2: Fair overtime distribution
+  G3: Minimize cross-shop assignments
+  G4: Minimize idle hours (below target)
+
+TRIMMING RULES:
+  T1: If >1 AM person OR >=1 FULL present, may trim:
+      - 1h from earliest AM start
+      - 2h from latest PM/FULL end
+  T2: At least one un-trimmed employee at open/close
+  T3: Apply only when it reduces overtime
 """
 
 from dataclasses import dataclass, field
@@ -26,6 +40,150 @@ from typing import List, Dict, Optional, Tuple, Any
 from ortools.sat.python import cp_model
 import traceback
 import json
+
+# Import trimming utility
+try:
+    from utils import apply_trimming
+except ImportError:
+    # Fallback if utils not found
+    def apply_trimming(shifts, employee_hours, **kwargs):
+        return shifts, employee_hours
+
+
+# ============================================
+# CONSTANTS
+# ============================================
+
+# Big staff shops - NEVER solo, PatternSolo forbidden
+BIG_STAFF_SHOPS = {'Hamrun', 'Carters', 'Fgura'}
+
+# Employees to NEVER roster
+EXCLUDED_EMPLOYEES = {'Maria'}
+
+# Days of week
+DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+DAYS_SHORT = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+# Day name mapping
+DAY_NAME_MAP = {
+    'mon': 0, 'monday': 0,
+    'tue': 1, 'tuesday': 1,
+    'wed': 2, 'wednesday': 2,
+    'thu': 3, 'thursday': 3,
+    'fri': 4, 'friday': 4,
+    'sat': 5, 'saturday': 5,
+    'sun': 6, 'sunday': 6
+}
+
+# Contract hours targets
+WEEK_TARGET = {
+    'full-time': 40,
+    'fulltime': 40,
+    'part-time': 30,
+    'parttime': 30,
+    'student': 20
+}
+
+# Overtime cap
+OT_CAP = 10  # max overtime hours per employee
+
+# Shift hours
+STANDARD_SHIFT_HOURS = 7.5
+MIN_SHIFT_HOURS = 4.0
+MAX_SHIFT_HOURS = 15.0
+
+# Max full-day employees per shop per day
+MAX_FULLDAY_PER_SHOP = 2
+
+# Penalty weights
+PENALTY_UNDER_MINIMUM = 100000     # Must meet minimum staffing
+PENALTY_UNDER_TARGET = 500         # Try to meet target staffing
+PENALTY_OVER_COVERAGE = 20         # Slight preference against overstaffing
+PENALTY_OVERTIME = 50              # Discourage overtime
+PENALTY_EXCESSIVE_OT = 200         # Strongly discourage excessive OT
+PENALTY_UNDER_HOURS = 100          # Try to give contracted hours
+PENALTY_CROSS_SHOP = 30            # Prefer main shop
+PENALTY_MISSED_SPECIAL = 100000    # Special requests must be met
+
+
+# ============================================
+# HELPER FUNCTIONS
+# ============================================
+
+def normalize_day_name(day: str) -> str:
+    """Convert any day format to full lowercase name"""
+    if not day:
+        return 'monday'
+    day_lower = day.lower().strip()
+    if day_lower in DAY_NAME_MAP:
+        return DAYS_OF_WEEK[DAY_NAME_MAP[day_lower]]
+    if len(day_lower) >= 3:
+        short = day_lower[:3]
+        if short in DAY_NAME_MAP:
+            return DAYS_OF_WEEK[DAY_NAME_MAP[short]]
+    return day_lower
+
+
+def get_day_index(day_name: str) -> int:
+    """Convert day name to index (0=Monday)"""
+    if not day_name:
+        return 0
+    day_lower = day_name.lower().strip()
+    if day_lower in DAY_NAME_MAP:
+        return DAY_NAME_MAP[day_lower]
+    if len(day_lower) >= 3:
+        short = day_lower[:3]
+        if short in DAY_NAME_MAP:
+            return DAY_NAME_MAP[short]
+    return 0
+
+
+def parse_time(time_str: str) -> int:
+    """Convert HH:MM to minutes since midnight"""
+    if not time_str:
+        return 0
+    try:
+        parts = time_str.split(':')
+        return int(parts[0]) * 60 + int(parts[1])
+    except:
+        return 0
+
+
+def format_time(minutes: int) -> str:
+    """Convert minutes since midnight to HH:MM"""
+    if minutes < 0:
+        minutes = 0
+    hours = minutes // 60
+    mins = minutes % 60
+    return f"{hours:02d}:{mins:02d}"
+
+
+def calculate_hours(start: str, end: str) -> float:
+    """Calculate shift duration in hours"""
+    start_mins = parse_time(start)
+    end_mins = parse_time(end)
+    return round((end_mins - start_mins) / 60.0, 2)
+
+
+def safe_json_parse(value, default):
+    """Safely parse JSON string or return value if already parsed"""
+    if value is None:
+        return default
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except:
+            return default
+    return value
+
+
+def get_employee_target_hours(employment_type: str) -> int:
+    """Get target weekly hours for employment type"""
+    if not employment_type:
+        return 40
+    emp_type = employment_type.lower().replace('-', '').replace('_', '')
+    return WEEK_TARGET.get(emp_type, 40)
+
 
 # ============================================
 # DATA CLASSES
@@ -36,7 +194,7 @@ class Employee:
     id: int
     name: str
     company: str
-    employment_type: str  # 'full-time', 'part-time', 'student'
+    employment_type: str
     weekly_hours: int
     is_active: bool = True
     am_only: bool = False
@@ -64,8 +222,8 @@ class ShiftTemplate:
     id: str
     shop_id: int
     shop_name: str
-    day_index: int  # 0=Monday, 6=Sunday
-    shift_type: str  # 'AM', 'PM', 'FULL', 'AM_TRIMMED', 'PM_TRIMMED'
+    day_index: int
+    shift_type: str  # 'AM', 'PM', 'FULL'
     start_time: str
     end_time: str
     hours: float
@@ -79,10 +237,8 @@ class DemandEntry:
     shop_id: int
     shop_name: str
     day_index: int
-    # TARGET values (soft constraint - penalized if not met)
     target_am: int = 1
     target_pm: int = 1
-    # MINIMUM values (hard constraint - MUST be met)
     min_am: int = 1
     min_pm: int = 1
     min_full_day: int = 0
@@ -90,26 +246,26 @@ class DemandEntry:
     allow_full_day: bool = True
     full_day_counts_as_both: bool = True
     is_mandatory: bool = False
-    coverage_mode: str = 'flexible'  # 'split', 'flexible', 'fullDayOnly'
+    coverage_mode: str = 'flexible'
+    is_solo: bool = False
 
 
-@dataclass 
+@dataclass
 class SpecialShiftDemand:
-    """Special request that must be fulfilled as a HARD constraint"""
+    """Special request - HARD constraint"""
     employee_id: int
     employee_name: str
     shop_id: int
     shop_name: str
     day_index: int
-    shift_type: str  # 'AM', 'PM', 'FULL'
+    shift_type: str
     start_time: Optional[str] = None
     end_time: Optional[str] = None
 
 
 @dataclass
 class StaffingConfig:
-    """Staffing configuration from UI"""
-    coverage_mode: str = 'flexible'  # 'split', 'flexible', 'fullDayOnly'
+    coverage_mode: str = 'flexible'
     min_at_opening: int = 1
     min_at_closing: int = 1
     weekly_schedule: List[Dict] = field(default_factory=list)
@@ -119,7 +275,6 @@ class StaffingConfig:
 
 @dataclass
 class ShopConfig:
-    """Complete shop configuration from database"""
     id: int
     name: str
     company: str
@@ -139,132 +294,7 @@ class ShopConfig:
 
 
 # ============================================
-# CONSTANTS
-# ============================================
-
-DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-DAYS_SHORT = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-
-# Short day name mapping - handles ALL formats (case-insensitive)
-DAY_NAME_MAP = {
-    'mon': 0, 'monday': 0,
-    'tue': 1, 'tuesday': 1,
-    'wed': 2, 'wednesday': 2,
-    'thu': 3, 'thursday': 3,
-    'fri': 4, 'friday': 4,
-    'sat': 5, 'saturday': 5,
-    'sun': 6, 'sunday': 6
-}
-
-
-def normalize_day_name(day: str) -> str:
-    """Convert any day format to full lowercase name"""
-    if not day:
-        return 'monday'
-    day_lower = day.lower().strip()
-    
-    # Direct lookup
-    if day_lower in DAY_NAME_MAP:
-        return DAYS_OF_WEEK[DAY_NAME_MAP[day_lower]]
-    
-    # Try first 3 chars
-    if len(day_lower) >= 3:
-        short = day_lower[:3]
-        if short in DAY_NAME_MAP:
-            return DAYS_OF_WEEK[DAY_NAME_MAP[short]]
-    
-    return day_lower
-
-
-def get_day_index(day_name: str) -> int:
-    """Convert day name to index (0=Monday)"""
-    if not day_name:
-        return 0
-    day_lower = day_name.lower().strip()
-    
-    # Direct lookup
-    if day_lower in DAY_NAME_MAP:
-        return DAY_NAME_MAP[day_lower]
-    
-    # Try first 3 chars
-    if len(day_lower) >= 3:
-        short = day_lower[:3]
-        if short in DAY_NAME_MAP:
-            return DAY_NAME_MAP[short]
-    
-    return 0
-
-
-def day_index_to_short(idx: int) -> str:
-    """Convert day index to short name (Mon, Tue, etc.)"""
-    if 0 <= idx < 7:
-        return DAYS_SHORT[idx]
-    return 'mon'
-
-
-# Hours constants
-STANDARD_SHIFT_HOURS = 7.5
-MIN_SHIFT_HOURS = 4.0
-MAX_SHIFT_HOURS = 15.0
-STUDENT_MAX_HOURS = 20
-MAX_WEEKLY_HOURS = 60  # Allow up to 60 hours (overtime OK)
-
-# Penalty weights for optimization
-# COVERAGE - these are critical
-PENALTY_UNDER_MINIMUM = 100000     # EXTREME - MUST meet minimum staffing
-PENALTY_UNDER_TARGET = 500         # High - try to meet target
-PENALTY_OVER_COVERAGE = 20         # Low - slight preference against overstaffing
-
-# EMPLOYEE HOURS - overtime is allowed
-PENALTY_OVERTIME = 5               # VERY LOW - overtime is fine, just track it
-PENALTY_UNDER_HOURS = 20           # Low - try to give people their hours
-PENALTY_EXCESSIVE_OVERTIME = 50    # Moderate - avoid giving someone 60h if possible
-
-# OTHER
-PENALTY_TRIMMED_SHIFT = 3          # Very low - slight preference for standard shifts
-PENALTY_MISSED_SPECIAL = 100000    # EXTREME - special requests must be fulfilled
-
-
-# ============================================
-# UTILITY FUNCTIONS
-# ============================================
-
-def parse_time(time_str: str) -> int:
-    """Convert HH:MM to minutes since midnight"""
-    if not time_str:
-        return 0
-    parts = time_str.split(':')
-    return int(parts[0]) * 60 + int(parts[1])
-
-
-def format_time(minutes: int) -> str:
-    """Convert minutes since midnight to HH:MM"""
-    hours = minutes // 60
-    mins = minutes % 60
-    return f"{hours:02d}:{mins:02d}"
-
-
-def calculate_hours(start: str, end: str) -> float:
-    """Calculate shift duration in hours"""
-    start_mins = parse_time(start)
-    end_mins = parse_time(end)
-    return (end_mins - start_mins) / 60.0
-
-
-def safe_json_parse(value, default):
-    """Safely parse JSON string or return value if already parsed"""
-    if value is None:
-        return default
-    if isinstance(value, str):
-        try:
-            return json.loads(value)
-        except:
-            return default
-    return value
-
-
-# ============================================
-# SHOP CONFIG LOADING
+# CONFIG LOADING
 # ============================================
 
 def load_staffing_config(data: Any) -> Optional[StaffingConfig]:
@@ -276,12 +306,10 @@ def load_staffing_config(data: Any) -> Optional[StaffingConfig]:
     if not parsed:
         return None
     
-    # Parse weekly schedule
     weekly = parsed.get('weeklySchedule', [])
     if isinstance(weekly, str):
         weekly = safe_json_parse(weekly, [])
     
-    # Get flags - check both top-level and nested in 'rules'
     rules = parsed.get('rules', {})
     if isinstance(rules, str):
         rules = safe_json_parse(rules, {})
@@ -289,7 +317,6 @@ def load_staffing_config(data: Any) -> Optional[StaffingConfig]:
     full_day_counts = parsed.get('fullDayCountsAsBoth', rules.get('fullDayCountsAsBoth', True))
     never_below = parsed.get('neverBelowMinimum', rules.get('neverBelowMinimum', True))
     
-    # Parse minimumStaff
     min_staff = parsed.get('minimumStaff', {})
     if isinstance(min_staff, str):
         min_staff = safe_json_parse(min_staff, {})
@@ -307,25 +334,27 @@ def load_staffing_config(data: Any) -> Optional[StaffingConfig]:
 def load_shop_config(shop_data: Dict) -> ShopConfig:
     """Load shop configuration from API data"""
     
-    # Parse trimming config
-    trimming = safe_json_parse(shop_data.get('trimming'), {})
+    shop_name = shop_data.get('name', 'Unknown')
     
-    # Ensure trimming has all required fields
+    # FORCE: Big staff shops can NEVER be solo
+    if shop_name in BIG_STAFF_SHOPS:
+        can_be_solo = False
+    else:
+        can_be_solo = shop_data.get('canBeSolo', False)
+    
+    trimming = safe_json_parse(shop_data.get('trimming'), {})
     default_trimming = {
-        'enabled': False,
+        'enabled': True,
         'trimAM': True,
-        'trimPM': False,
+        'trimPM': True,
         'minShiftHours': 4,
         'trimFromStart': 1,
         'trimFromEnd': 2,
-        'trimWhenMoreThan': 2
+        'trimWhenMoreThan': 1
     }
     trimming = {**default_trimming, **trimming}
     
-    # Parse sunday config
     sunday = safe_json_parse(shop_data.get('sunday'), {})
-    
-    # Ensure sunday has all required fields
     default_sunday = {
         'closed': False,
         'maxStaff': None,
@@ -339,26 +368,19 @@ def load_shop_config(shop_data: Dict) -> ShopConfig:
     if sunday.get('customHours') is None:
         sunday['customHours'] = default_sunday['customHours']
     
-    # Parse requirements
     requirements = safe_json_parse(shop_data.get('requirements'), [])
-    
-    # Parse special shifts
     special_shifts = safe_json_parse(shop_data.get('specialShifts'), [])
-    
-    # Parse assigned employees
     assigned = safe_json_parse(shop_data.get('assignedEmployees'), [])
-    
-    # Parse staffing config
     staffing_config = load_staffing_config(shop_data.get('staffingConfig'))
     
     return ShopConfig(
         id=shop_data.get('id', 0),
-        name=shop_data.get('name', 'Unknown'),
+        name=shop_name,
         company=shop_data.get('company', 'CMZ'),
         open_time=shop_data.get('openTime', '06:30'),
         close_time=shop_data.get('closeTime', '21:30'),
         is_active=shop_data.get('isActive', True),
-        can_be_solo=shop_data.get('canBeSolo', False),
+        can_be_solo=can_be_solo,
         min_staff_at_open=shop_data.get('minStaffAtOpen', 1),
         min_staff_midday=shop_data.get('minStaffMidday', 2),
         min_staff_at_close=shop_data.get('minStaffAtClose', 1),
@@ -386,11 +408,10 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
         if not config.is_active:
             continue
         
-        # Get staffing config (may be None)
         staffing = config.staffing_config
         coverage_mode = staffing.coverage_mode if staffing else 'flexible'
         
-        # Build a lookup for weekly schedule by day INDEX
+        # Build day config lookup by index
         day_config_by_index = {}
         if staffing and staffing.weekly_schedule:
             for dc in staffing.weekly_schedule:
@@ -399,67 +420,44 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     idx = get_day_index(dc_day)
                     day_config_by_index[idx] = dc
         
-        # Calculate shift times based on shop hours
+        # Calculate shift times
         open_mins = parse_time(config.open_time)
         close_mins = parse_time(config.close_time)
         midpoint = (open_mins + close_mins) // 2
         
-        # Standard shift times
         am_start = config.open_time
-        am_end = format_time(midpoint + 30)  # 30 min overlap
-        pm_start = format_time(midpoint - 30)  # 30 min overlap
+        am_end = format_time(midpoint + 30)
+        pm_start = format_time(midpoint - 30)
         pm_end = config.close_time
         
-        # Trimmed shift times (if enabled)
-        trim_cfg = config.trimming
-        trimmed_am_start = format_time(open_mins + int(trim_cfg.get('trimFromStart', 1) * 60))
-        trimmed_am_end = format_time(midpoint + 30 - int(trim_cfg.get('trimFromEnd', 2) * 60))
-        
         for day_idx in range(7):
-            day_name = DAYS_OF_WEEK[day_idx]
-            
-            # Check if Sunday and closed
+            # Check Sunday closed
             if day_idx == 6 and config.sunday.get('closed', False):
                 continue
             
-            # Store original times for this day
             day_am_start, day_am_end = am_start, am_end
             day_pm_start, day_pm_end = pm_start, pm_end
             
-            # Get custom Sunday hours if enabled
+            # Sunday custom hours
             if day_idx == 6 and config.sunday.get('customHours', {}).get('enabled', False):
                 custom = config.sunday['customHours']
                 day_am_start = custom.get('openTime', '08:00')
-                day_am_end = custom.get('closeTime', '13:00')
-                day_pm_start = day_am_start  # Sunday typically just one shift
-                day_pm_end = day_am_end
+                day_pm_end = custom.get('closeTime', '13:00')
+                day_am_end = day_pm_end
+                day_pm_start = day_am_start
             
-            # Get day config from our lookup (by INDEX, not name)
             day_config = day_config_by_index.get(day_idx)
+            is_mandatory = day_config.get('isMandatory', False) if day_config else False
             
-            # Get day requirements (legacy fallback)
-            day_req = None
-            for req in config.requirements:
-                req_day = req.get('day', '')
-                if get_day_index(req_day) == day_idx:
-                    day_req = req
-                    break
-            
-            # Determine if day is mandatory
-            is_mandatory = False
-            if day_config:
-                is_mandatory = day_config.get('isMandatory', False)
-            elif day_req:
-                is_mandatory = day_req.get('isMandatory', False)
-            
-            # Calculate hours
             am_hours = calculate_hours(day_am_start, day_am_end)
             pm_hours = calculate_hours(day_pm_start, day_pm_end)
             full_hours = calculate_hours(day_am_start, day_pm_end)
             
-            # Create templates based on coverage mode
-            if coverage_mode == 'fullDayOnly':
-                # ONLY create FULL templates
+            # Determine if solo shop
+            is_solo = config.can_be_solo and config.name not in BIG_STAFF_SHOPS
+            
+            if is_solo:
+                # Solo shops: primarily FULL shifts, but allow AM/PM for flexibility
                 templates.append(ShiftTemplate(
                     id=f"{config.id}_{day_idx}_FULL",
                     shop_id=config.id,
@@ -469,11 +467,9 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     start_time=day_am_start,
                     end_time=day_pm_end,
                     hours=full_hours,
-                    is_trimmed=False,
                     is_mandatory=is_mandatory
                 ))
-            elif coverage_mode == 'split':
-                # ONLY create AM and PM templates (no FULL)
+                # Also add AM/PM for PatternB flexibility
                 templates.append(ShiftTemplate(
                     id=f"{config.id}_{day_idx}_AM",
                     shop_id=config.id,
@@ -483,10 +479,8 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     start_time=day_am_start,
                     end_time=day_am_end,
                     hours=am_hours,
-                    is_trimmed=False,
                     is_mandatory=is_mandatory
                 ))
-                
                 templates.append(ShiftTemplate(
                     id=f"{config.id}_{day_idx}_PM",
                     shop_id=config.id,
@@ -496,33 +490,10 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     start_time=day_pm_start,
                     end_time=day_pm_end,
                     hours=pm_hours,
-                    is_trimmed=False,
                     is_mandatory=is_mandatory
                 ))
-                
-                # Add trimmed AM if enabled and not solo
-                if (trim_cfg.get('enabled', False) and 
-                    trim_cfg.get('trimAM', True) and 
-                    not config.can_be_solo):
-                    
-                    trimmed_hours = calculate_hours(trimmed_am_start, trimmed_am_end)
-                    min_hours = trim_cfg.get('minShiftHours', 4)
-                    
-                    if trimmed_hours >= min_hours:
-                        templates.append(ShiftTemplate(
-                            id=f"{config.id}_{day_idx}_AM_TRIMMED",
-                            shop_id=config.id,
-                            shop_name=config.name,
-                            day_index=day_idx,
-                            shift_type='AM_TRIMMED',
-                            start_time=trimmed_am_start,
-                            end_time=trimmed_am_end,
-                            hours=trimmed_hours,
-                            is_trimmed=True,
-                            is_mandatory=False
-                        ))
             else:
-                # FLEXIBLE: create all types
+                # Non-solo shops: AM, PM, and limited FULL
                 templates.append(ShiftTemplate(
                     id=f"{config.id}_{day_idx}_AM",
                     shop_id=config.id,
@@ -532,10 +503,8 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     start_time=day_am_start,
                     end_time=day_am_end,
                     hours=am_hours,
-                    is_trimmed=False,
                     is_mandatory=is_mandatory
                 ))
-                
                 templates.append(ShiftTemplate(
                     id=f"{config.id}_{day_idx}_PM",
                     shop_id=config.id,
@@ -545,10 +514,8 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     start_time=day_pm_start,
                     end_time=day_pm_end,
                     hours=pm_hours,
-                    is_trimmed=False,
                     is_mandatory=is_mandatory
                 ))
-                
                 templates.append(ShiftTemplate(
                     id=f"{config.id}_{day_idx}_FULL",
                     shop_id=config.id,
@@ -558,33 +525,10 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     start_time=day_am_start,
                     end_time=day_pm_end,
                     hours=full_hours,
-                    is_trimmed=False,
                     is_mandatory=is_mandatory
                 ))
-                
-                # Add trimmed AM if enabled and not solo
-                if (trim_cfg.get('enabled', False) and 
-                    trim_cfg.get('trimAM', True) and 
-                    not config.can_be_solo):
-                    
-                    trimmed_hours = calculate_hours(trimmed_am_start, trimmed_am_end)
-                    min_hours = trim_cfg.get('minShiftHours', 4)
-                    
-                    if trimmed_hours >= min_hours:
-                        templates.append(ShiftTemplate(
-                            id=f"{config.id}_{day_idx}_AM_TRIMMED",
-                            shop_id=config.id,
-                            shop_name=config.name,
-                            day_index=day_idx,
-                            shift_type='AM_TRIMMED',
-                            start_time=trimmed_am_start,
-                            end_time=trimmed_am_end,
-                            hours=trimmed_hours,
-                            is_trimmed=True,
-                            is_mandatory=False
-                        ))
         
-        # Process special shifts as special demands
+        # Process special shifts
         for special in config.special_shifts:
             emp_id = special.get('employeeId')
             if emp_id:
@@ -599,13 +543,12 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     start_time=special.get('startTime'),
                     end_time=special.get('endTime')
                 ))
-                print(f"  [SPECIAL SHIFT] {special.get('employeeName', emp_id)} -> {config.name} on {DAYS_OF_WEEK[day_idx]} ({special.get('shiftType', 'AM')})")
     
     return templates, special_demands
 
 
 def build_demands_from_config(shops: List[Dict]) -> List[DemandEntry]:
-    """Build demand entries from shop configurations with TARGET and MINIMUM support"""
+    """Build demand entries from shop configurations"""
     demands = []
     
     for shop_data in shops:
@@ -614,14 +557,16 @@ def build_demands_from_config(shops: List[Dict]) -> List[DemandEntry]:
         if not config.is_active:
             continue
         
-        # Get staffing config
         staffing = config.staffing_config
         coverage_mode = staffing.coverage_mode if staffing else 'flexible'
         full_day_counts_as_both = staffing.full_day_counts_as_both if staffing else True
         
-        print(f"\n[DEMANDS] Building for {config.name} (mode={coverage_mode}):")
+        # Determine if solo
+        is_solo = config.can_be_solo and config.name not in BIG_STAFF_SHOPS
         
-        # Build a lookup for weekly schedule by day INDEX
+        print(f"\n[DEMANDS] Building for {config.name} (mode={coverage_mode}, solo={is_solo}):")
+        
+        # Build day config lookup
         day_config_by_index = {}
         if staffing and staffing.weekly_schedule:
             for dc in staffing.weekly_schedule:
@@ -633,67 +578,42 @@ def build_demands_from_config(shops: List[Dict]) -> List[DemandEntry]:
         for day_idx in range(7):
             day_name = DAYS_OF_WEEK[day_idx]
             
-            # Check if Sunday and closed
+            # Sunday closed check
             if day_idx == 6 and config.sunday.get('closed', False):
                 print(f"  {day_name}: CLOSED")
                 continue
             
-            # Get day config from our lookup (by INDEX)
             day_config = day_config_by_index.get(day_idx)
             
-            # Get day requirements (legacy fallback)
-            day_req = None
-            for req in config.requirements:
-                req_day = req.get('day', '')
-                if get_day_index(req_day) == day_idx:
-                    day_req = req
-                    break
-            
-            # Determine requirements - separate TARGET and MINIMUM
             if day_config:
-                # Use new staffing config with TARGET and MINIMUM
                 min_am = day_config.get('minAM', 1)
                 min_pm = day_config.get('minPM', 1)
-                # TARGET falls back to MIN if not specified or None
-                target_am = day_config.get('targetAM')
-                target_pm = day_config.get('targetPM')
-                if target_am is None:
-                    target_am = min_am
-                if target_pm is None:
-                    target_pm = min_pm
-                
+                target_am = day_config.get('targetAM') or min_am
+                target_pm = day_config.get('targetPM') or min_pm
                 min_full_day = day_config.get('minFullDay', 0)
                 max_staff = day_config.get('maxStaff', 10)
                 is_mandatory = day_config.get('isMandatory', False)
-                allow_full = coverage_mode != 'split'
                 
                 print(f"  {day_name}: target={target_am}AM/{target_pm}PM, min={min_am}AM/{min_pm}PM, max={max_staff}")
-            elif day_req:
-                # Legacy requirements - use same value for target and min
-                target_am = day_req.get('amStaff', 1)
-                target_pm = day_req.get('pmStaff', 1)
-                min_am = target_am
-                min_pm = target_pm
-                min_full_day = 0
-                max_staff = day_req.get('maxStaff', 10) if day_req.get('maxStaff') else 10
-                allow_full = day_req.get('allowFullDay', True)
-                is_mandatory = day_req.get('isMandatory', False)
-                
-                print(f"  {day_name}: (legacy) staff={target_am}AM/{target_pm}PM, max={max_staff}")
             else:
-                # Defaults
-                target_am = 1
-                target_pm = 1
-                min_am = 1
-                min_pm = 1
-                min_full_day = 0
-                max_staff = 10
-                allow_full = coverage_mode != 'split'
-                is_mandatory = False
+                # Defaults based on shop type
+                if is_solo:
+                    # Solo: 1 person full day
+                    min_am, min_pm = 1, 1
+                    target_am, target_pm = 1, 1
+                    min_full_day = 1
+                    max_staff = 2
+                else:
+                    # Non-solo: basic coverage
+                    min_am, min_pm = 1, 1
+                    target_am, target_pm = 2, 2
+                    min_full_day = 0
+                    max_staff = 6
                 
-                print(f"  {day_name}: (defaults) 1AM/1PM")
+                is_mandatory = False
+                print(f"  {day_name}: (defaults) {target_am}AM/{target_pm}PM, solo={is_solo}")
             
-            # Apply Sunday max staff limit
+            # Sunday max staff limit
             if day_idx == 6:
                 sunday_max = config.sunday.get('maxStaff')
                 if sunday_max is not None:
@@ -713,10 +633,11 @@ def build_demands_from_config(shops: List[Dict]) -> List[DemandEntry]:
                 min_pm=min_pm,
                 min_full_day=min_full_day,
                 max_staff=max_staff,
-                allow_full_day=allow_full,
+                allow_full_day=True,
                 full_day_counts_as_both=full_day_counts_as_both,
                 is_mandatory=is_mandatory,
-                coverage_mode=coverage_mode
+                coverage_mode=coverage_mode,
+                is_solo=is_solo
             ))
     
     return demands
@@ -753,8 +674,12 @@ class RosterSolver:
         self.special_demands = special_demands
         self.shop_configs = shop_configs or {}
         
-        # Build lookup structures
-        self.employee_by_id = {e.id: e for e in employees}
+        # Filter out excluded employees (C5: Maria never rostered)
+        self.employees = [e for e in self.employees if e.name not in EXCLUDED_EMPLOYEES]
+        
+        # Build lookups
+        self.employee_by_id = {e.id: e for e in self.employees}
+        
         self.templates_by_shop_day = {}
         for t in templates:
             key = (t.shop_id, t.day_index)
@@ -762,94 +687,111 @@ class RosterSolver:
                 self.templates_by_shop_day[key] = []
             self.templates_by_shop_day[key].append(t)
         
-        # Build employee-shop assignment map
         self.employee_shops = {}
         for a in assignments:
             if a.employee_id not in self.employee_shops:
-                self.employee_shops[a.employee_id] = []
-            self.employee_shops[a.employee_id].append(a.shop_id)
+                self.employee_shops[a.employee_id] = {'primary': None, 'secondary': []}
+            if a.is_primary:
+                self.employee_shops[a.employee_id]['primary'] = a.shop_id
+            else:
+                self.employee_shops[a.employee_id]['secondary'].append(a.shop_id)
         
-        # Build leave lookup (employee_id -> set of day indices)
+        # Add from employee data
+        for emp in self.employees:
+            if emp.id not in self.employee_shops:
+                self.employee_shops[emp.id] = {'primary': None, 'secondary': []}
+            if emp.primary_shop_id:
+                self.employee_shops[emp.id]['primary'] = emp.primary_shop_id
+            for sid in (emp.secondary_shop_ids or []):
+                if sid not in self.employee_shops[emp.id]['secondary']:
+                    self.employee_shops[emp.id]['secondary'].append(sid)
+        
         self.employee_leave_days = {}
         for lr in leave_requests:
             if lr.status == 'approved':
                 if lr.employee_id not in self.employee_leave_days:
                     self.employee_leave_days[lr.employee_id] = set()
-                # Convert dates to day indices for this week
                 for day_idx in range(7):
                     self.employee_leave_days[lr.employee_id].add(day_idx)
         
-        # Build demand lookup
         self.demands_by_shop_day = {}
         for d in demands:
             key = (d.shop_id, d.day_index)
             self.demands_by_shop_day[key] = d
         
-        # Model and variables
         self.model = cp_model.CpModel()
-        self.shift_vars = {}  # (employee_id, template_id) -> BoolVar
-        
+        self.shift_vars = {}
+    
+    def _get_employee_shops(self, emp_id: int) -> List[int]:
+        """Get all shops an employee can work at"""
+        shops = []
+        if emp_id in self.employee_shops:
+            data = self.employee_shops[emp_id]
+            if data['primary']:
+                shops.append(data['primary'])
+            shops.extend(data['secondary'])
+        return list(set(shops))
+    
+    def _is_primary_shop(self, emp_id: int, shop_id: int) -> bool:
+        """Check if shop is employee's primary"""
+        if emp_id in self.employee_shops:
+            return self.employee_shops[emp_id]['primary'] == shop_id
+        return False
+    
     def _build_variables(self):
         """Create decision variables for shift assignments"""
         for emp in self.employees:
             if not emp.is_active:
                 continue
             
-            # Get shops this employee can work at
-            emp_shops = self.employee_shops.get(emp.id, [])
-            if emp.primary_shop_id and emp.primary_shop_id not in emp_shops:
-                emp_shops.append(emp.primary_shop_id)
-            for sec_id in emp.secondary_shop_ids:
-                if sec_id not in emp_shops:
-                    emp_shops.append(sec_id)
+            emp_shops = self._get_employee_shops(emp.id)
             
             for template in self.templates:
-                # Check if employee can work at this shop
+                # C1: Company match
+                config = self.shop_configs.get(template.shop_id)
+                if config and config.company != emp.company and emp.company != 'BOTH':
+                    continue
+                
+                # Shop assignment check
                 if template.shop_id not in emp_shops:
                     continue
                 
-                # Check if employee is on leave
+                # Leave check
                 if emp.id in self.employee_leave_days:
                     if template.day_index in self.employee_leave_days[emp.id]:
                         continue
                 
-                # Check fixed days off
+                # Fixed days off
                 emp_key = emp.name.lower()
                 if emp_key in self.fixed_days_off:
                     if template.day_index in self.fixed_days_off[emp_key]:
                         continue
                 
-                # Check AM-only constraint
+                # AM-only constraint
                 if emp.am_only and template.shift_type in ['PM', 'FULL']:
                     continue
                 
-                # Create variable
                 var_name = f"shift_{emp.id}_{template.id}"
                 self.shift_vars[(emp.id, template.id)] = self.model.NewBoolVar(var_name)
     
     def _add_coverage_constraints(self):
-        """
-        Ensure each shop/day has required coverage.
-        
-        HARD CONSTRAINTS:
-        - Must meet minimum staffing (minAM/minPM)
-        - These are business requirements that MUST be satisfied
-        """
-        print("\n[COVERAGE CONSTRAINTS - HARD]")
+        """Add coverage constraints - respecting patterns"""
+        print("\n[COVERAGE CONSTRAINTS]")
         
         for demand in self.demands:
             shop_id = demand.shop_id
             day_idx = demand.day_index
             
-            # Get shop config
             config = self.shop_configs.get(shop_id)
-            can_be_solo = config.can_be_solo if config else False
+            shop_name = config.name if config else demand.shop_name
             
-            # Collect variables that contribute to coverage
+            # C6: Force big shops to never be solo
+            is_solo = demand.is_solo and shop_name not in BIG_STAFF_SHOPS
+            
+            # Collect variables
             am_vars = []
             pm_vars = []
             full_vars = []
-            trimmed_am_vars = []
             
             for (emp_id, template_id), var in self.shift_vars.items():
                 template = next((t for t in self.templates if t.id == template_id), None)
@@ -864,136 +806,96 @@ class RosterSolver:
                     pm_vars.append(var)
                 elif template.shift_type == 'FULL':
                     full_vars.append(var)
-                elif template.shift_type == 'AM_TRIMMED':
-                    trimmed_am_vars.append(var)
             
-            # Calculate effective coverage based on mode
-            coverage_mode = demand.coverage_mode
-            full_counts_as_both = demand.full_day_counts_as_both
+            # C7: Max 2 FULL-day per shop/day
+            if full_vars:
+                self.model.Add(sum(full_vars) <= MAX_FULLDAY_PER_SHOP)
             
-            if full_counts_as_both:
-                am_coverage = am_vars + full_vars + trimmed_am_vars
+            # Coverage calculation
+            if demand.full_day_counts_as_both:
+                am_coverage = am_vars + full_vars
                 pm_coverage = pm_vars + full_vars
             else:
-                am_coverage = am_vars + trimmed_am_vars
+                am_coverage = am_vars
                 pm_coverage = pm_vars
             
-            day_name = DAYS_OF_WEEK[day_idx]
-            print(f"  {demand.shop_name} {day_name}: min={demand.min_am}AM/{demand.min_pm}PM, available={len(am_coverage)}AM/{len(pm_coverage)}PM vars")
+            day_name = DAYS_OF_WEEK[day_idx][:3].upper()
+            print(f"  {shop_name} {day_name}: min={demand.min_am}AM/{demand.min_pm}PM, solo={is_solo}, fullMax=2")
             
-            # === HARD CONSTRAINTS (MINIMUM STAFFING) ===
-            if coverage_mode == 'fullDayOnly':
-                # Only FULL shifts - require minimum
-                min_required = max(demand.min_am, demand.min_pm, demand.min_full_day, 1)
-                if full_vars:
-                    self.model.Add(sum(full_vars) >= min_required)
-                    if demand.max_staff < 10:
-                        self.model.Add(sum(full_vars) <= demand.max_staff)
-                    
-            elif coverage_mode == 'split':
-                # Only AM + PM (no FULL)
+            if is_solo:
+                # Solo shop: at least 1 person (prefer FULL)
+                all_vars = am_vars + pm_vars + full_vars
+                if all_vars:
+                    self.model.Add(sum(all_vars) >= 1)
+            else:
+                # Non-solo: must have AM and PM coverage
                 if am_coverage and demand.min_am > 0:
                     self.model.Add(sum(am_coverage) >= demand.min_am)
                 if pm_coverage and demand.min_pm > 0:
                     self.model.Add(sum(pm_coverage) >= demand.min_pm)
-                    
-            else:
-                # FLEXIBLE mode
-                if can_be_solo:
-                    # Solo shop: at least 1 person covering the day
-                    all_coverage = am_vars + pm_vars + full_vars + trimmed_am_vars
-                    if all_coverage:
-                        self.model.Add(sum(all_coverage) >= 1)
-                else:
-                    # Regular shop: enforce MINIMUM staffing (HARD)
-                    if am_coverage and demand.min_am > 0:
-                        self.model.Add(sum(am_coverage) >= demand.min_am)
-                    if pm_coverage and demand.min_pm > 0:
-                        self.model.Add(sum(pm_coverage) >= demand.min_pm)
-                    
-                    # Also ensure never completely empty
-                    all_coverage = am_vars + pm_vars + full_vars + trimmed_am_vars
-                    if all_coverage:
-                        self.model.Add(sum(all_coverage) >= 1)
             
-            # === MAX STAFF CONSTRAINT ===
+            # Max staff
             if demand.max_staff < 10:
-                emp_works = {}
-                for (emp_id, template_id), var in self.shift_vars.items():
-                    template = next((t for t in self.templates if t.id == template_id), None)
-                    if template and template.shop_id == shop_id and template.day_index == day_idx:
-                        if emp_id not in emp_works:
-                            emp_works[emp_id] = []
-                        emp_works[emp_id].append(var)
-                
-                if emp_works:
-                    emp_indicators = []
-                    for emp_id, vars_list in emp_works.items():
-                        indicator = self.model.NewBoolVar(f"emp_{emp_id}_works_{shop_id}_{day_idx}")
-                        self.model.AddMaxEquality(indicator, vars_list)
-                        emp_indicators.append(indicator)
+                all_unique = list(set(am_vars + pm_vars + full_vars))
+                if all_unique:
+                    # Count unique employees
+                    emp_day_vars = {}
+                    for (emp_id, template_id), var in self.shift_vars.items():
+                        template = next((t for t in self.templates if t.id == template_id), None)
+                        if template and template.shop_id == shop_id and template.day_index == day_idx:
+                            if emp_id not in emp_day_vars:
+                                emp_day_vars[emp_id] = []
+                            emp_day_vars[emp_id].append(var)
                     
-                    if emp_indicators:
+                    if emp_day_vars:
+                        emp_indicators = []
+                        for eid, vlist in emp_day_vars.items():
+                            ind = self.model.NewBoolVar(f"emp_{eid}_at_{shop_id}_{day_idx}")
+                            self.model.AddMaxEquality(ind, vlist)
+                            emp_indicators.append(ind)
                         self.model.Add(sum(emp_indicators) <= demand.max_staff)
     
     def _add_special_request_constraints(self):
-        """
-        Add HARD constraints for special requests.
-        These MUST be fulfilled - the solver will fail if impossible.
-        """
-        print("\n[SPECIAL REQUEST CONSTRAINTS - HARD]")
+        """C4: Honour all Special Requests"""
+        print("\n[SPECIAL REQUEST CONSTRAINTS]")
         
         if not self.special_demands:
             print("  No special requests")
             return
         
         for special in self.special_demands:
-            # Find matching template(s)
-            matching_templates = []
+            matching = []
             for template in self.templates:
-                if (template.shop_id == special.shop_id and 
+                if (template.shop_id == special.shop_id and
                     template.day_index == special.day_index):
-                    # Match shift type
                     if special.shift_type == 'FULL' and template.shift_type == 'FULL':
-                        matching_templates.append(template)
-                    elif special.shift_type == 'AM' and template.shift_type in ['AM', 'AM_TRIMMED']:
-                        matching_templates.append(template)
+                        matching.append(template)
+                    elif special.shift_type == 'AM' and template.shift_type == 'AM':
+                        matching.append(template)
                     elif special.shift_type == 'PM' and template.shift_type == 'PM':
-                        matching_templates.append(template)
+                        matching.append(template)
             
-            # Collect matching variables for this employee
-            matching_vars = []
-            for template in matching_templates:
-                key = (special.employee_id, template.id)
+            vars_for_special = []
+            for t in matching:
+                key = (special.employee_id, t.id)
                 if key in self.shift_vars:
-                    matching_vars.append(self.shift_vars[key])
+                    vars_for_special.append(self.shift_vars[key])
             
-            if matching_vars:
-                # HARD CONSTRAINT: Employee MUST work at least one of these shifts
-                self.model.Add(sum(matching_vars) >= 1)
-                print(f"  REQUIRED: {special.employee_name} MUST work {special.shift_type} at {special.shop_name} on {DAYS_OF_WEEK[special.day_index]}")
+            if vars_for_special:
+                self.model.Add(sum(vars_for_special) >= 1)
+                print(f"  REQUIRED: {special.employee_name} -> {special.shop_name} {DAYS_OF_WEEK[special.day_index][:3]} {special.shift_type}")
             else:
-                print(f"  WARNING: Cannot fulfill request for {special.employee_name} - not assigned to shop or no matching shift!")
+                print(f"  WARNING: Cannot fulfill {special.employee_name} request")
     
     def _add_employee_constraints(self):
-        """
-        Add per-employee constraints.
-        
-        HARD CONSTRAINTS:
-        - Max 1 shift per day (can't be in two places at once)
-        - At least 1 day off per week (labor law)
-        - Students max 20h/week (legal requirement)
-        
-        SOFT CONSTRAINTS (handled in objective):
-        - Target weekly hours (overtime is allowed but penalized)
-        """
+        """Add per-employee constraints"""
         print("\n[EMPLOYEE CONSTRAINTS]")
         
         for emp in self.employees:
             if not emp.is_active:
                 continue
             
-            # === HARD: One shift per day per employee ===
+            # One shift per day
             for day_idx in range(7):
                 day_shifts = []
                 for (emp_id, template_id), var in self.shift_vars.items():
@@ -1006,171 +908,134 @@ class RosterSolver:
                 if day_shifts:
                     self.model.Add(sum(day_shifts) <= 1)
             
-            # === HARD: At least one day off per week ===
-            all_shifts = [var for (emp_id, _), var in self.shift_vars.items() if emp_id == emp.id]
+            # At least 1 day off per week
+            all_shifts = [var for (eid, _), var in self.shift_vars.items() if eid == emp.id]
             if all_shifts:
                 self.model.Add(sum(all_shifts) <= 6)
             
-            # === HARD: Student hours cap (legal requirement) ===
-            if emp.employment_type == 'student':
-                total_hours_terms = []
-                for (emp_id, template_id), var in self.shift_vars.items():
-                    if emp_id != emp.id:
-                        continue
-                    template = next((t for t in self.templates if t.id == template_id), None)
-                    if template:
-                        hours_x10 = int(template.hours * 10)
-                        total_hours_terms.append(var * hours_x10)
-                
-                if total_hours_terms:
-                    self.model.Add(sum(total_hours_terms) <= STUDENT_MAX_HOURS * 10)
-                    print(f"  {emp.name}: Student - HARD cap {STUDENT_MAX_HOURS}h/week")
+            # C3: Hours constraints
+            target = get_employee_target_hours(emp.employment_type)
+            max_hours = target + OT_CAP
             
-            # NOTE: Regular employees have NO hard hour cap - overtime is allowed
-            # Overtime will be tracked and lightly penalized in objective
+            # Student hard cap
+            if emp.employment_type.lower() == 'student':
+                hours_terms = []
+                for (eid, tid), var in self.shift_vars.items():
+                    if eid != emp.id:
+                        continue
+                    template = next((t for t in self.templates if t.id == tid), None)
+                    if template:
+                        hours_terms.append(var * int(template.hours * 10))
+                
+                if hours_terms:
+                    self.model.Add(sum(hours_terms) <= 200)  # 20h * 10
     
     def _build_objective(self):
-        """
-        Build optimization objective.
-        
-        PRIORITIES (highest to lowest):
-        1. Meet minimum staffing (handled by hard constraints)
-        2. Meet target staffing (soft penalty)
-        3. Distribute hours fairly (soft penalty)
-        4. Minimize excessive overtime (soft penalty)
-        """
+        """Build optimization objective"""
         print("\n[BUILDING OBJECTIVE]")
-        objective_terms = []
+        terms = []
         
-        # === COVERAGE PENALTIES ===
-        for demand in self.demands:
-            shop_id = demand.shop_id
-            day_idx = demand.day_index
-            
-            # Collect coverage variables
-            am_coverage = []
-            pm_coverage = []
-            full_coverage = []
-            
-            for (emp_id, template_id), var in self.shift_vars.items():
-                template = next((t for t in self.templates if t.id == template_id), None)
-                if not template:
-                    continue
-                if template.shop_id != shop_id or template.day_index != day_idx:
-                    continue
-                
-                if template.shift_type in ['AM', 'AM_TRIMMED']:
-                    am_coverage.append(var)
-                if template.shift_type == 'PM':
-                    pm_coverage.append(var)
-                if template.shift_type == 'FULL':
-                    full_coverage.append(var)
-            
-            # Determine effective coverage based on mode
-            if demand.full_day_counts_as_both:
-                am_effective = am_coverage + full_coverage
-                pm_effective = pm_coverage + full_coverage
-            else:
-                am_effective = am_coverage
-                pm_effective = pm_coverage
-            
-            # --- Under TARGET penalty (soft - try to meet targets) ---
-            if am_effective and demand.target_am > 0:
-                under_target_am = self.model.NewIntVar(0, demand.target_am, f"under_target_am_{shop_id}_{day_idx}")
-                self.model.Add(under_target_am >= demand.target_am - sum(am_effective))
-                objective_terms.append(under_target_am * PENALTY_UNDER_TARGET)
-            
-            if pm_effective and demand.target_pm > 0:
-                under_target_pm = self.model.NewIntVar(0, demand.target_pm, f"under_target_pm_{shop_id}_{day_idx}")
-                self.model.Add(under_target_pm >= demand.target_pm - sum(pm_effective))
-                objective_terms.append(under_target_pm * PENALTY_UNDER_TARGET)
-            
-            # --- Over coverage penalty (very light) ---
-            if am_effective:
-                over_am = self.model.NewIntVar(0, 10, f"over_am_{shop_id}_{day_idx}")
-                self.model.Add(over_am >= sum(am_effective) - demand.target_am)
-                objective_terms.append(over_am * PENALTY_OVER_COVERAGE)
-            
-            if pm_effective:
-                over_pm = self.model.NewIntVar(0, 10, f"over_pm_{shop_id}_{day_idx}")
-                self.model.Add(over_pm >= sum(pm_effective) - demand.target_pm)
-                objective_terms.append(over_pm * PENALTY_OVER_COVERAGE)
-        
-        # === EMPLOYEE HOURS PENALTIES (SOFT - overtime allowed) ===
+        # G1: Minimize overtime
         for emp in self.employees:
             if not emp.is_active:
                 continue
             
             hours_terms = []
-            for (emp_id, template_id), var in self.shift_vars.items():
-                if emp_id != emp.id:
+            for (eid, tid), var in self.shift_vars.items():
+                if eid != emp.id:
                     continue
-                template = next((t for t in self.templates if t.id == template_id), None)
+                template = next((t for t in self.templates if t.id == tid), None)
                 if template:
-                    hours_x10 = int(template.hours * 10)
-                    hours_terms.append(var * hours_x10)
+                    hours_terms.append(var * int(template.hours * 10))
             
             if hours_terms:
-                # Allow up to 60 hours (significant overtime OK)
-                total_hours_x10 = self.model.NewIntVar(0, MAX_WEEKLY_HOURS * 10, f"hours_{emp.id}")
-                self.model.Add(total_hours_x10 == sum(hours_terms))
+                total = self.model.NewIntVar(0, 600, f"hours_{emp.id}")
+                self.model.Add(total == sum(hours_terms))
                 
-                target_hours_x10 = emp.weekly_hours * 10
+                target = get_employee_target_hours(emp.employment_type) * 10
                 
-                # Under hours penalty (try to give people their contracted hours)
-                under_hours = self.model.NewIntVar(0, 500, f"under_hours_{emp.id}")
-                self.model.Add(under_hours >= target_hours_x10 - total_hours_x10)
-                objective_terms.append(under_hours * PENALTY_UNDER_HOURS)
+                # Under hours penalty (G4)
+                under = self.model.NewIntVar(0, 500, f"under_{emp.id}")
+                self.model.Add(under >= target - total)
+                terms.append(under * PENALTY_UNDER_HOURS)
                 
-                # Overtime penalty (VERY LOW - overtime is fine)
-                if emp.employment_type != 'student':
-                    over_hours = self.model.NewIntVar(0, 300, f"over_hours_{emp.id}")
-                    self.model.Add(over_hours >= total_hours_x10 - target_hours_x10)
-                    objective_terms.append(over_hours * PENALTY_OVERTIME)
-                    
-                    # Excessive overtime penalty (moderate - avoid giving someone 60h)
-                    excessive_ot = self.model.NewIntVar(0, 200, f"excessive_ot_{emp.id}")
-                    # Penalize hours over 50
-                    self.model.Add(excessive_ot >= total_hours_x10 - 500)
-                    objective_terms.append(excessive_ot * PENALTY_EXCESSIVE_OVERTIME)
+                # Overtime penalty (G1)
+                over = self.model.NewIntVar(0, 200, f"over_{emp.id}")
+                self.model.Add(over >= total - target)
+                terms.append(over * PENALTY_OVERTIME)
+                
+                # Excessive OT penalty
+                excessive = self.model.NewIntVar(0, 100, f"excessive_{emp.id}")
+                self.model.Add(excessive >= total - (target + 50))  # > 5h OT
+                terms.append(excessive * PENALTY_EXCESSIVE_OT)
         
-        # === TRIMMED SHIFT PENALTY (very light preference for standard shifts) ===
+        # G3: Prefer main shop
         for (emp_id, template_id), var in self.shift_vars.items():
             template = next((t for t in self.templates if t.id == template_id), None)
-            if template and template.is_trimmed:
-                objective_terms.append(var * PENALTY_TRIMMED_SHIFT)
+            if template and not self._is_primary_shop(emp_id, template.shop_id):
+                terms.append(var * PENALTY_CROSS_SHOP)
         
-        # Minimize total penalties
-        if objective_terms:
-            self.model.Minimize(sum(objective_terms))
-            print(f"  Objective has {len(objective_terms)} terms")
+        # Coverage penalties
+        for demand in self.demands:
+            shop_id = demand.shop_id
+            day_idx = demand.day_index
+            
+            am_cov = []
+            pm_cov = []
+            
+            for (eid, tid), var in self.shift_vars.items():
+                template = next((t for t in self.templates if t.id == tid), None)
+                if not template or template.shop_id != shop_id or template.day_index != day_idx:
+                    continue
+                if template.shift_type in ['AM', 'FULL']:
+                    am_cov.append(var)
+                if template.shift_type in ['PM', 'FULL']:
+                    pm_cov.append(var)
+            
+            # Under target penalty
+            if am_cov:
+                under_am = self.model.NewIntVar(0, 10, f"under_am_{shop_id}_{day_idx}")
+                self.model.Add(under_am >= demand.target_am - sum(am_cov))
+                terms.append(under_am * PENALTY_UNDER_TARGET)
+            
+            if pm_cov:
+                under_pm = self.model.NewIntVar(0, 10, f"under_pm_{shop_id}_{day_idx}")
+                self.model.Add(under_pm >= demand.target_pm - sum(pm_cov))
+                terms.append(under_pm * PENALTY_UNDER_TARGET)
+            
+            # Over coverage penalty
+            if am_cov:
+                over_am = self.model.NewIntVar(0, 10, f"over_am_{shop_id}_{day_idx}")
+                self.model.Add(over_am >= sum(am_cov) - demand.target_am)
+                terms.append(over_am * PENALTY_OVER_COVERAGE)
+        
+        if terms:
+            self.model.Minimize(sum(terms))
+            print(f"  Objective has {len(terms)} terms")
     
     def solve(self, time_limit_seconds: int = 120) -> Dict:
-        """Solve the roster and return results"""
+        """Solve the roster"""
         try:
             print(f"\n{'='*60}")
-            print("ROSTERPRO v31.0 - Overtime-Enabled Solver")
+            print("ROSTERPRO v32.0 - Pattern-Based Solver")
             print(f"{'='*60}")
             print(f"Employees: {len(self.employees)}")
             print(f"Templates: {len(self.templates)}")
             print(f"Demands: {len(self.demands)}")
             print(f"Special Requests: {len(self.special_demands)}")
-            print(f"Shop Configs: {len(self.shop_configs)}")
-            print(f"Assignments: {len(self.assignments)}")
+            print(f"Excluded: {EXCLUDED_EMPLOYEES}")
             
-            # Build the model
             print("\n[BUILDING MODEL]")
             self._build_variables()
-            print(f"  Variables created: {len(self.shift_vars)}")
+            print(f"  Variables: {len(self.shift_vars)}")
             
-            if len(self.shift_vars) == 0:
-                print("\n[ERROR] No shift variables created! Check employee-shop assignments.")
+            if not self.shift_vars:
                 return {
                     'success': False,
                     'status': 'NO_VARIABLES',
                     'shifts': [],
                     'employeeHours': {},
-                    'message': 'No employees can be assigned to any shifts. Check shop assignments.'
+                    'message': 'No valid shift assignments possible'
                 }
             
             self._add_coverage_constraints()
@@ -1178,7 +1043,6 @@ class RosterSolver:
             self._add_employee_constraints()
             self._build_objective()
             
-            # Solve
             print(f"\n[SOLVING] Time limit: {time_limit_seconds}s")
             solver = cp_model.CpSolver()
             solver.parameters.max_time_in_seconds = time_limit_seconds
@@ -1193,126 +1057,96 @@ class RosterSolver:
                 cp_model.MODEL_INVALID: 'MODEL_INVALID',
                 cp_model.UNKNOWN: 'UNKNOWN'
             }
-            
             status_str = status_names.get(status, 'UNKNOWN')
             print(f"\n[RESULT] Status: {status_str}")
             
             if status in [cp_model.OPTIMAL, cp_model.FEASIBLE]:
-                # Extract solution
+                # Extract shifts
                 shifts = []
                 employee_hours = {emp.id: 0.0 for emp in self.employees}
-                
-                # Count coverage for verification
-                coverage_count = {}
                 
                 for (emp_id, template_id), var in self.shift_vars.items():
                     if solver.Value(var) == 1:
                         template = next((t for t in self.templates if t.id == template_id), None)
-                        if not template:
-                            continue
-                        
                         emp = self.employee_by_id.get(emp_id)
-                        if not emp:
-                            continue
                         
-                        # Calculate actual date
-                        from datetime import datetime, timedelta
-                        week_start_date = datetime.strptime(self.week_start, '%Y-%m-%d')
-                        shift_date = week_start_date + timedelta(days=template.day_index)
-                        
-                        shift = {
-                            'id': f"{emp_id}_{template_id}_{self.week_start}",
-                            'employeeId': emp_id,
-                            'employeeName': emp.name,
-                            'shopId': template.shop_id,
-                            'shopName': template.shop_name,
-                            'date': shift_date.strftime('%Y-%m-%d'),
-                            'dayIndex': template.day_index,
-                            'shiftType': template.shift_type,
-                            'startTime': template.start_time,
-                            'endTime': template.end_time,
-                            'hours': template.hours,
-                            'company': emp.company
-                        }
-                        shifts.append(shift)
-                        employee_hours[emp_id] += template.hours
-                        
-                        # Track coverage
-                        key = (template.shop_id, template.day_index)
-                        if key not in coverage_count:
-                            coverage_count[key] = {'am': 0, 'pm': 0, 'full': 0}
-                        
-                        if template.shift_type in ['AM', 'AM_TRIMMED']:
-                            coverage_count[key]['am'] += 1
-                        elif template.shift_type == 'PM':
-                            coverage_count[key]['pm'] += 1
-                        elif template.shift_type == 'FULL':
-                            coverage_count[key]['full'] += 1
+                        if template and emp:
+                            # Calculate date
+                            from datetime import datetime, timedelta
+                            week_start_date = datetime.strptime(self.week_start, '%Y-%m-%d')
+                            shift_date = week_start_date + timedelta(days=template.day_index)
+                            
+                            shifts.append({
+                                'id': f"{template.id}_{emp_id}",
+                                'date': shift_date.strftime('%Y-%m-%d'),
+                                'shopId': template.shop_id,
+                                'shopName': template.shop_name,
+                                'employeeId': emp_id,
+                                'employeeName': emp.name,
+                                'startTime': template.start_time,
+                                'endTime': template.end_time,
+                                'hours': template.hours,
+                                'shiftType': template.shift_type,
+                                'isTrimmed': False
+                            })
+                            employee_hours[emp_id] += template.hours
                 
-                # Log coverage summary
-                print(f"\n[COVERAGE SUMMARY]")
+                # === TRIMMING PASS ===
+                print("\n[TRIMMING PASS]")
+                shifts, employee_hours = apply_trimming(
+                    shifts=shifts,
+                    employee_hours=employee_hours,
+                    max_first_am_trim=1,
+                    max_last_pm_trim=2
+                )
+                
+                # Coverage summary
+                print("\n[COVERAGE SUMMARY]")
                 for demand in self.demands:
-                    key = (demand.shop_id, demand.day_index)
-                    actual = coverage_count.get(key, {'am': 0, 'pm': 0, 'full': 0})
-                    
-                    if demand.full_day_counts_as_both:
-                        am_eff = actual['am'] + actual['full']
-                        pm_eff = actual['pm'] + actual['full']
-                    else:
-                        am_eff = actual['am']
-                        pm_eff = actual['pm']
-                    
-                    am_ok = "✓" if am_eff >= demand.min_am else "✗"
-                    pm_ok = "✓" if pm_eff >= demand.min_pm else "✗"
-                    
+                    day_shifts = [s for s in shifts if s['shopId'] == demand.shop_id and 
+                                  datetime.strptime(s['date'], '%Y-%m-%d').weekday() == demand.day_index]
+                    am_count = len([s for s in day_shifts if s['shiftType'] in ['AM', 'FULL']])
+                    pm_count = len([s for s in day_shifts if s['shiftType'] in ['PM', 'FULL']])
                     day_name = DAYS_OF_WEEK[demand.day_index][:3].upper()
-                    print(f"  {demand.shop_name} {day_name}: AM={am_eff}/{demand.min_am} {am_ok}, PM={pm_eff}/{demand.min_pm} {pm_ok}")
+                    print(f"  {demand.shop_name} {day_name}: AM={am_count}/{demand.target_am}, PM={pm_count}/{demand.target_pm}")
                 
-                # Log employee hours
-                print(f"\n[EMPLOYEE HOURS]")
-                overtime_employees = []
+                # Employee hours summary
+                print("\n[EMPLOYEE HOURS]")
+                total_ot = 0
                 for emp in self.employees:
                     hours = employee_hours.get(emp.id, 0)
-                    if hours > 0:
-                        ot_indicator = ""
-                        if hours > emp.weekly_hours:
-                            ot_hours = hours - emp.weekly_hours
-                            ot_indicator = f" [+{ot_hours:.1f}h OT]"
-                            overtime_employees.append((emp.name, ot_hours))
-                        print(f"  {emp.name}: {hours:.1f}h / {emp.weekly_hours}h{ot_indicator}")
+                    target = get_employee_target_hours(emp.employment_type)
+                    ot = max(0, hours - target)
+                    total_ot += ot
+                    ot_str = f" [+{ot:.1f}h OT]" if ot > 0 else ""
+                    print(f"  {emp.name}: {hours:.1f}h / {target}h{ot_str}")
                 
-                if overtime_employees:
-                    print(f"\n[OVERTIME SUMMARY]")
-                    total_ot = sum(ot for _, ot in overtime_employees)
-                    print(f"  {len(overtime_employees)} employees with overtime, total: {total_ot:.1f}h")
-                
-                print(f"\n[RESULT] Generated {len(shifts)} shifts")
-                print(f"  Objective value: {solver.ObjectiveValue()}")
+                print(f"\n[OVERTIME TOTAL] {total_ot:.1f}h")
+                print(f"[SHIFTS GENERATED] {len(shifts)}")
                 
                 return {
                     'success': True,
                     'status': status_str,
                     'shifts': shifts,
-                    'employeeHours': employee_hours,
-                    'objectiveValue': solver.ObjectiveValue(),
-                    'message': f'Generated {len(shifts)} shifts'
+                    'employeeHours': {str(k): v for k, v in employee_hours.items()},
+                    'overtimeTotal': total_ot,
+                    'objective': solver.ObjectiveValue()
                 }
-            
             else:
-                print(f"\n[ERROR] Solver failed: {status_str}")
-                print("This usually means:")
-                print("  - Not enough employees assigned to shops")
-                print("  - Staffing requirements too high for available staff")
-                print("  - Conflicting constraints (e.g., special requests)")
+                print("\n[ERROR] Solver failed")
+                print("  Possible causes:")
+                print("  - Not enough employees for coverage")
+                print("  - Conflicting constraints")
+                print("  - Special requests impossible")
                 
                 return {
                     'success': False,
                     'status': status_str,
                     'shifts': [],
                     'employeeHours': {},
-                    'message': f'Could not find a valid roster. Status: {status_str}'
+                    'message': 'Could not generate feasible roster'
                 }
-                
+        
         except Exception as e:
             print(f"\n[EXCEPTION] {str(e)}")
             traceback.print_exc()
