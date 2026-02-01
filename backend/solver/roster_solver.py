@@ -169,12 +169,14 @@ def safe_json_parse(value, default):
     """Safely parse JSON string or return value if already parsed"""
     if value is None:
         return default
+    if isinstance(value, dict) or isinstance(value, list):
+        return value  # Already parsed!
     if isinstance(value, str):
         try:
             return json.loads(value)
         except:
             return default
-    return value
+    return default
 
 
 def get_employee_target_hours(employment_type: str) -> int:
@@ -457,7 +459,7 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
             is_solo = config.can_be_solo and config.name not in BIG_STAFF_SHOPS
             
             if is_solo:
-                # Solo shops: primarily FULL shifts, but allow AM/PM for flexibility
+                # Solo shops: ONLY FULL shifts - one person covers the whole day
                 templates.append(ShiftTemplate(
                     id=f"{config.id}_{day_idx}_FULL",
                     shop_id=config.id,
@@ -469,29 +471,8 @@ def build_templates_from_config(shops: List[Dict]) -> Tuple[List[ShiftTemplate],
                     hours=full_hours,
                     is_mandatory=is_mandatory
                 ))
-                # Also add AM/PM for PatternB flexibility
-                templates.append(ShiftTemplate(
-                    id=f"{config.id}_{day_idx}_AM",
-                    shop_id=config.id,
-                    shop_name=config.name,
-                    day_index=day_idx,
-                    shift_type='AM',
-                    start_time=day_am_start,
-                    end_time=day_am_end,
-                    hours=am_hours,
-                    is_mandatory=is_mandatory
-                ))
-                templates.append(ShiftTemplate(
-                    id=f"{config.id}_{day_idx}_PM",
-                    shop_id=config.id,
-                    shop_name=config.name,
-                    day_index=day_idx,
-                    shift_type='PM',
-                    start_time=day_pm_start,
-                    end_time=day_pm_end,
-                    hours=pm_hours,
-                    is_mandatory=is_mandatory
-                ))
+                # NO AM/PM templates for solo shops
+
             else:
                 # Non-solo shops: AM, PM, and limited FULL
                 templates.append(ShiftTemplate(
@@ -618,12 +599,13 @@ def build_demands_from_config(shops: List[Dict]) -> List[DemandEntry]:
                 sunday_max = config.sunday.get('maxStaff')
                 if sunday_max is not None:
                     target_am = min(target_am, sunday_max)
-                    target_pm = min(target_pm, sunday_max)
-                    min_am = min(min_am, sunday_max)
-                    min_pm = min(min_pm, sunday_max)
-                    max_staff = min(max_staff, sunday_max)
-            
-            demands.append(DemandEntry(
+                              if is_solo:
+                    # Solo: exactly 1 person full day, no more
+                    min_am, min_pm = 0, 0
+                    target_am, target_pm = 0, 0
+                    min_full_day = 1
+                    max_staff = 1  # EXACTLY 1 person
+
                 shop_id=config.id,
                 shop_name=config.name,
                 day_index=day_idx,
@@ -823,19 +805,10 @@ class RosterSolver:
             print(f"  {shop_name} {day_name}: min={demand.min_am}AM/{demand.min_pm}PM, solo={is_solo}, fullMax=2")
             
             if is_solo:
-                # Solo shop: need FULL day coverage
-                # Either 1 FULL shift, OR both AM and PM
-                if full_vars:
-                    # AM coverage = AM shifts + FULL shifts
-                    self.model.Add(sum(am_vars) + sum(full_vars) >= 1)
-                    # PM coverage = PM shifts + FULL shifts
-                    self.model.Add(sum(pm_vars) + sum(full_vars) >= 1)
-                else:
-                    # No FULL option - need both AM and PM
-                    if am_vars:
-                        self.model.Add(sum(am_vars) >= 1)
-                    if pm_vars:
-                        self.model.Add(sum(pm_vars) >= 1)
+                # Solo shop: at least 1 person (FULL preferred, but AM or PM ok)
+                all_vars = am_vars + pm_vars + full_vars
+                if all_vars:
+                    self.model.Add(sum(all_vars) >= 1)
             else:
                 # Non-solo: must have AM and PM coverage
                 if am_coverage and demand.min_am > 0:
@@ -1111,6 +1084,7 @@ class RosterSolver:
                 
                 # Coverage summary
                 print("\n[COVERAGE SUMMARY]")
+                from datetime import datetime
                 for demand in self.demands:
                     day_shifts = [s for s in shifts if s['shopId'] == demand.shop_id and 
                                   datetime.strptime(s['date'], '%Y-%m-%d').weekday() == demand.day_index]
