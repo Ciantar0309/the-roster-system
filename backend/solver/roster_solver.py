@@ -1,94 +1,52 @@
-# backend/solver/roster_solver.py
 """
-ROSTERPRO v32.2
-============================================================
+ROSTERPRO v32.3 — Pattern-Based Solver
+======================================
+32.0  original
+32.1  flexible-day fix, no consecutive FULL, higher OT penalties
+32.2  post-solve trimming keeps at-close headcount; full-timers >= 40h (hard)
+32.3  per-shop trimming from DB; no FULL at big shops; Sunday maxStaff fix
 
-32.0  – original file you sent
-32.1  – flexible-day fix, no consecutive FULL, higher OT penalties
-32.2  – THIS VERSION
-       • post-solve trimming keeps at-close headcount
-       • full-timers must hit ≥ 40 h (hard constraint)
-
-The public API (build_templates_from_config, build_demands_from_config,
-RosterSolver) stays exactly the same, so routes keep working.
+Public API unchanged:
+    build_templates_from_config, build_demands_from_config, RosterSolver
 """
 
+from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 from ortools.sat.python import cp_model
-import traceback
-import json
+from datetime import datetime, timedelta
+import json, re
 
-# ────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
-# ────────────────────────────────────────────────────────────────
-BIG_STAFF_SHOPS = {'Hamrun', 'Carters', 'Fgura'}
-EXCLUDED_EMPLOYEES = {'Maria'}
+# ────────────────────────────────────────────────────────────────────────────
+BIG_STAFF_SHOPS = {"Hamrun", "Carters", "Fgura"}
+EXCLUDED_EMPLOYEES = {"Maria"}
+DAYS_OF_WEEK = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+DAY_NAME_MAP = {0: "Mon", 1: "Tue", 2: "Wed", 3: "Thu", 4: "Fri", 5: "Sat", 6: "Sun"}
 
-DAYS_OF_WEEK = ['monday', 'tuesday', 'wednesday',
-                'thursday', 'friday', 'saturday', 'sunday']
-DAY_NAME_MAP = {k: i for i, k in enumerate(
-    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])}
-DAY_NAME_MAP.update({d: i for i, d in enumerate(DAYS_OF_WEEK)})
-
-WEEK_TARGET = {'fulltime': 40, 'full-time': 40,
-               'parttime': 30, 'part-time': 30,
-               'student': 20}
-
+WEEK_TARGET = {
+    "fulltime": 40, "full-time": 40,
+    "parttime": 30, "part-time": 30,
+    "student": 20
+}
 OT_CAP = 10
 MAX_FULLDAY_PER_SHOP = 2
 
-PENALTY_UNDER_MINIMUM = 100000
-PENALTY_UNDER_TARGET  = 500
+# Penalties
+PENALTY_UNDER_MINIMUM = 100_000
+PENALTY_UNDER_TARGET = 500
 PENALTY_OVER_COVERAGE = 20
-PENALTY_OVERTIME      = 300
-PENALTY_EXCESSIVE_OT  = 1000
-PENALTY_UNDER_HOURS   = 500
-PENALTY_CROSS_SHOP    = 30
-PENALTY_FULL_SHIFT      = 100
-PENALTY_FULL_SHIFT_BIG  = 500
+PENALTY_OVERTIME = 300
+PENALTY_EXCESSIVE_OT = 1000
+PENALTY_UNDER_HOURS = 2000
+PENALTY_CROSS_SHOP = 30
+PENALTY_FULL_SHIFT = 300
+PENALTY_FULL_SHIFT_BIG = 3000
 
-# ────────────────────────────────────────────────────────────────
-# Tiny helpers
-# ────────────────────────────────────────────────────────────────
-def get_day_index(day: str) -> int:
-    if not day:
-        return 0
-    d = day.lower()[:3]
-    return DAY_NAME_MAP.get(d, 0)
-
-def parse_time(t: str) -> int:      # "06:30" → 390
-    try:
-        h, m = map(int, t.split(':'))
-        return h * 60 + m
-    except Exception:
-        return 0
-
-def format_time(m: int) -> str:     # 1170 → "19:30"
-    m = max(0, m)
-    return f"{m//60:02d}:{m%60:02d}"
-
-def calculate_hours(start: str, end: str) -> float:
-    return round((parse_time(end) - parse_time(start)) / 60, 2)
-
-def safe_json_parse(val, default):
-    if val is None:
-        return default
-    if isinstance(val, (dict, list)):
-        return val
-    try:
-        return json.loads(val)
-    except Exception:
-        return default
-
-def get_employee_target_hours(kind: str) -> int:
-    if not kind:
-        return 40
-    return WEEK_TARGET.get(kind.lower().replace('-', ''), 40)
-
-# ────────────────────────────────────────────────────────────────
-# Data classes  (unchanged – shortened docstrings)
-# ────────────────────────────────────────────────────────────────
+# ────────────────────────────────────────────────────────────────────────────
+# DATA MODELS
+# ────────────────────────────────────────────────────────────────────────────
 @dataclass
 class Employee:
     id: int
@@ -98,21 +56,23 @@ class Employee:
     weekly_hours: int
     is_active: bool = True
     am_only: bool = False
+    pm_only: bool = False
     primary_shop_id: Optional[int] = None
     secondary_shop_ids: List[int] = field(default_factory=list)
+
 
 @dataclass
 class LeaveRequest:
     employee_id: int
     start_date: str
     end_date: str
-    status: str = 'approved'
+    leave_type: str
 
 @dataclass
 class ShopAssignment:
     employee_id: int
     shop_id: int
-    is_primary: bool = False
+    is_primary: bool
 
 @dataclass
 class ShiftTemplate:
@@ -120,11 +80,10 @@ class ShiftTemplate:
     shop_id: int
     shop_name: str
     day_index: int
-    shift_type: str
+    shift_type: str  # AM, PM, FULL
     start_time: str
     end_time: str
     hours: float
-    is_trimmed: bool = False
     is_mandatory: bool = False
 
 @dataclass
@@ -132,32 +91,30 @@ class DemandEntry:
     shop_id: int
     shop_name: str
     day_index: int
-    target_am: int = 1
-    target_pm: int = 1
-    min_am: int = 1
-    min_pm: int = 1
+    min_am: int
+    min_pm: int
+    target_am: int
+    target_pm: int
+    is_mandatory: bool
+    is_solo: bool
     max_staff: int = 10
-    allow_full_day: bool = True
-    full_day_counts_as_both: bool = True
-    is_mandatory: bool = False
-    coverage_mode: str = 'flexible'
-    is_solo: bool = False
 
 @dataclass
 class SpecialShiftDemand:
-    employee_id: int
-    employee_name: str
     shop_id: int
     shop_name: str
     day_index: int
     shift_type: str
+    employee_id: Optional[int]
+    start_time: str
+    end_time: str
 
 @dataclass
 class StaffingConfig:
-    coverage_mode: str = 'flexible'
-    weekly_schedule: List[Dict] = field(default_factory=list)
+    coverage_mode: str = "flexible"
     full_day_counts_as_both: bool = True
     never_below_minimum: bool = True
+    weekly_schedule: List[Dict] = field(default_factory=list)
 
 @dataclass
 class ShopConfig:
@@ -170,167 +127,383 @@ class ShopConfig:
     can_be_solo: bool
     min_staff_at_close: int
     sunday: Dict
-    special_shifts: List[Dict] = field(default_factory=list)
-    staffing_config: Optional[StaffingConfig] = None
+    special_shifts: List
+    staffing_config: Optional[StaffingConfig]
+    # Trimming config
+    trim_enabled: bool = True
+    trim_am: bool = True
+    trim_pm: bool = False
+    trim_from_start: int = 1
+    trim_from_end: int = 2
+    trim_when_more_than: int = 2
 
-# ────────────────────────────────────────────────────────────────
-# Loader helpers  (only essentials kept)
-# ────────────────────────────────────────────────────────────────
-def load_staffing_config(data: Any) -> Optional[StaffingConfig]:
+# ────────────────────────────────────────────────────────────────────────────
+# HELPERS
+# ────────────────────────────────────────────────────────────────────────────
+def get_day_index(day_name: str) -> int:
+    mapping = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6,
+               "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+               "friday": 4, "saturday": 5, "sunday": 6}
+    return mapping.get(day_name.lower(), -1)
+
+def parse_time(t: str) -> int:
+    """Convert HH:MM to minutes since midnight."""
+    if not t:
+        return 0
+    parts = t.split(":")
+    return int(parts[0]) * 60 + int(parts[1])
+
+def format_time(mins: int) -> str:
+    h, m = divmod(mins, 60)
+    return f"{h:02d}:{m:02d}"
+
+def calculate_hours(start: str, end: str) -> float:
+    return max(0, (parse_time(end) - parse_time(start)) / 60)
+
+def safe_json_parse(s: Any, default: Any = None):
+    if s is None:
+        return default
+    if isinstance(s, (dict, list)):
+        return s
+    try:
+        return json.loads(s)
+    except:
+        return default
+
+def get_employee_target_hours(emp_type: str) -> int:
+    return WEEK_TARGET.get(emp_type.lower().replace(" ", ""), 40)
+
+# ────────────────────────────────────────────────────────────────────────────
+# LOADERS
+# ────────────────────────────────────────────────────────────────────────────
+def load_staffing_config(raw: Any) -> Optional[StaffingConfig]:
+    data = safe_json_parse(raw, None)
     if not data:
         return None
-    parsed = safe_json_parse(data, None)
-    if not parsed:
-        return None
-    weekly = parsed.get('weeklySchedule', [])
-    if isinstance(weekly, str):
-        weekly = safe_json_parse(weekly, [])
     return StaffingConfig(
-        coverage_mode=parsed.get('coverageMode', 'flexible'),
-        weekly_schedule=weekly,
-        full_day_counts_as_both=parsed.get('fullDayCountsAsBoth', True),
-        never_below_minimum=parsed.get('neverBelowMinimum', True)
+        coverage_mode=data.get("coverageMode", "flexible"),
+        full_day_counts_as_both=data.get("fullDayCountsAsBoth", True),
+        never_below_minimum=data.get("neverBelowMinimum", True),
+        weekly_schedule=data.get("weeklySchedule", [])
     )
 
 def load_shop_config(raw: Dict) -> ShopConfig:
-    sunday = safe_json_parse(raw.get('sunday'), {}) or {}
+    sunday = safe_json_parse(raw.get("sunday"), {}) or {}
+    special_shifts = safe_json_parse(raw.get("specialShifts"), []) or []
+    staffing = load_staffing_config(raw.get("staffingConfig"))
+    trimming = safe_json_parse(raw.get("trimming"), {}) or {}
+    
     return ShopConfig(
-        id=raw['id'],
-        name=raw['name'],
-        company=raw.get('company', 'CMZ'),
-        open_time=raw.get('openTime', '06:30'),
-        close_time=raw.get('closeTime', '21:30'),
-        is_active=raw.get('isActive', True),
-        can_be_solo=False if raw['name'] in BIG_STAFF_SHOPS else raw.get('canBeSolo', False),
-        min_staff_at_close=raw.get('minStaffAtClose', 1),
+        id=raw["id"],
+        name=raw["name"],
+        company=raw.get("company", ""),
+        open_time=raw.get("openTime", "06:30"),
+        close_time=raw.get("closeTime", "21:30"),
+        is_active=bool(raw.get("isActive", 1)),
+        can_be_solo=False if raw["name"] in BIG_STAFF_SHOPS else bool(raw.get("canBeSolo", False)),
+        min_staff_at_close=raw.get("minStaffAtClose", 1),
         sunday=sunday,
-        special_shifts=safe_json_parse(raw.get('specialShifts'), []),
-        staffing_config=load_staffing_config(raw.get('staffingConfig'))
+        special_shifts=special_shifts,
+        staffing_config=staffing,
+        trim_enabled=trimming.get("enabled", True),
+        trim_am=trimming.get("trimAM", True),
+        trim_pm=trimming.get("trimPM", False),
+        trim_from_start=trimming.get("trimFromStart", 1),
+        trim_from_end=trimming.get("trimFromEnd", 2),
+        trim_when_more_than=trimming.get("trimWhenMoreThan", 2)
     )
 
-# ────────────────────────────────────────────────────────────────
-# Template & Demand builders (identical logic, shortened)
-# ────────────────────────────────────────────────────────────────
-def build_templates_from_config(shops: List[Dict]):
-    templates, specials = [], []
-    for s in shops:
-        cfg = load_shop_config(s)
+# ────────────────────────────────────────────────────────────────────────────
+# BUILDERS
+# ────────────────────────────────────────────────────────────────────────────
+def build_templates_from_config(shop_configs) -> List[ShiftTemplate]:
+    templates = []
+    
+    # Handle both dict and list input
+    if isinstance(shop_configs, list):
+        configs = shop_configs
+    else:
+        configs = shop_configs.values()
+    
+    for cfg in configs:
+        # If cfg is a dict (raw data), convert it
+        if isinstance(cfg, dict):
+            cfg = load_shop_config(cfg)
+        
         if not cfg.is_active:
             continue
-        open_m = parse_time(cfg.open_time)
-        close_m = parse_time(cfg.close_time)
-        mid = (open_m + close_m) // 2
-        am_start, am_end = cfg.open_time, format_time(mid + 30)
-        pm_start, pm_end = format_time(mid - 30), cfg.close_time
-        for d in range(7):
-            if d == 6 and cfg.sunday.get('closed'):
+        
+        staffing = cfg.staffing_config
+        sunday_closed = cfg.sunday.get("closed", False) if isinstance(cfg.sunday, dict) else False
+        
+        for day_idx in range(7):
+            # Skip Sunday if closed
+            if day_idx == 6 and sunday_closed:
                 continue
-            hrs_am = calculate_hours(am_start, am_end)
-            hrs_pm = calculate_hours(pm_start, pm_end)
-            hrs_full = calculate_hours(am_start, pm_end)
-            for st, stime, etime, hrs in (
-                ('AM', am_start, am_end, hrs_am),
-                ('PM', pm_start, pm_end, hrs_pm),
-                ('FULL', am_start, pm_end, hrs_full)):
+            
+            # Get times for this day
+            sunday_dict = cfg.sunday if isinstance(cfg.sunday, dict) else {}
+            if day_idx == 6 and sunday_dict.get("customHours", {}).get("enabled", False):
+                custom = sunday_dict["customHours"]
+                day_open = custom.get("openTime", cfg.open_time)
+                day_close = custom.get("closeTime", cfg.close_time)
+            else:
+                day_open = cfg.open_time
+                day_close = cfg.close_time
+            
+            open_mins = parse_time(day_open)
+            close_mins = parse_time(day_close)
+            midpoint = (open_mins + close_mins) // 2
+            
+            am_start = day_open
+            am_end = format_time(midpoint + 30)
+            pm_start = format_time(midpoint - 30)
+            pm_end = day_close
+            
+            am_hours = calculate_hours(am_start, am_end)
+            pm_hours = calculate_hours(pm_start, pm_end)
+            full_hours = calculate_hours(am_start, pm_end)
+            
+            is_solo = cfg.can_be_solo and cfg.name not in BIG_STAFF_SHOPS
+            
+            # Get day config from staffing
+            day_config = None
+            if staffing and staffing.weekly_schedule:
+                day_name = DAY_NAME_MAP.get(day_idx, "")
+                for d in staffing.weekly_schedule:
+                    if d.get("day", "")[:3].lower() == day_name.lower()[:3]:
+                        day_config = d
+                        break
+            
+            is_mandatory = day_config.get("isMandatory", False) if day_config else False
+            
+            # Solo shops: FULL, AM, PM templates
+            if is_solo:
                 templates.append(ShiftTemplate(
-                    id=f'{cfg.id}_{d}_{st}',
+                    id=f"{cfg.id}_{day_idx}_FULL",
                     shop_id=cfg.id,
                     shop_name=cfg.name,
-                    day_index=d,
-                    shift_type=st,
-                    start_time=stime,
-                    end_time=etime,
-                    hours=hrs,
-                    is_mandatory=False
+                    day_index=day_idx,
+                    shift_type="FULL",
+                    start_time=am_start,
+                    end_time=pm_end,
+                    hours=full_hours,
+                    is_mandatory=is_mandatory
                 ))
-    return templates, specials
+                templates.append(ShiftTemplate(
+                    id=f"{cfg.id}_{day_idx}_AM",
+                    shop_id=cfg.id,
+                    shop_name=cfg.name,
+                    day_index=day_idx,
+                    shift_type="AM",
+                    start_time=am_start,
+                    end_time=am_end,
+                    hours=am_hours,
+                    is_mandatory=is_mandatory
+                ))
+                templates.append(ShiftTemplate(
+                    id=f"{cfg.id}_{day_idx}_PM",
+                    shop_id=cfg.id,
+                    shop_name=cfg.name,
+                    day_index=day_idx,
+                    shift_type="PM",
+                    start_time=pm_start,
+                    end_time=pm_end,
+                    hours=pm_hours,
+                    is_mandatory=is_mandatory
+                ))
+            else:
+                # Non-solo: AM, PM, FULL
+                templates.append(ShiftTemplate(
+                    id=f"{cfg.id}_{day_idx}_AM",
+                    shop_id=cfg.id,
+                    shop_name=cfg.name,
+                    day_index=day_idx,
+                    shift_type="AM",
+                    start_time=am_start,
+                    end_time=am_end,
+                    hours=am_hours,
+                    is_mandatory=is_mandatory
+                ))
+                templates.append(ShiftTemplate(
+                    id=f"{cfg.id}_{day_idx}_PM",
+                    shop_id=cfg.id,
+                    shop_name=cfg.name,
+                    day_index=day_idx,
+                    shift_type="PM",
+                    start_time=pm_start,
+                    end_time=pm_end,
+                    hours=pm_hours,
+                    is_mandatory=is_mandatory
+                ))
+                templates.append(ShiftTemplate(
+                    id=f"{cfg.id}_{day_idx}_FULL",
+                    shop_id=cfg.id,
+                    shop_name=cfg.name,
+                    day_index=day_idx,
+                    shift_type="FULL",
+                    start_time=am_start,
+                    end_time=pm_end,
+                    hours=full_hours,
+                    is_mandatory=is_mandatory
+                ))
+    
+    return templates, []  # (templates, special_demands)
 
-def build_demands_from_config(shops: List[Dict]):
+
+def build_demands_from_config(shop_configs) -> List[DemandEntry]:
     demands = []
-    for s in shops:
-        cfg = load_shop_config(s)
+    
+    # Handle both dict and list input
+    if isinstance(shop_configs, list):
+        configs = shop_configs
+    else:
+        configs = shop_configs.values()
+    
+    for cfg in configs:
+        # If cfg is a dict (raw data), convert it
+        if isinstance(cfg, dict):
+            cfg = load_shop_config(cfg)
+        
         if not cfg.is_active:
             continue
-        solo = cfg.can_be_solo and cfg.name not in BIG_STAFF_SHOPS
+        
         staffing = cfg.staffing_config
-        w_lookup = {get_day_index(x['day']): x
-                    for x in (staffing.weekly_schedule if staffing else [])}
-        for d in range(7):
-            if d == 6 and cfg.sunday.get('closed'):
+        sunday_dict = cfg.sunday if isinstance(cfg.sunday, dict) else {}
+        sunday_closed = sunday_dict.get("closed", False)
+        sunday_max = sunday_dict.get("maxStaff") or 4
+        
+        for day_idx in range(7):
+            if day_idx == 6 and sunday_closed:
                 continue
-            wk = w_lookup.get(d, {})
-            min_am = wk.get('minAM', 1 if not solo else 1)
-            min_pm = wk.get('minPM', 1 if not solo else 1)
-            target_am = wk.get('targetAM', min_am)
-            target_pm = wk.get('targetPM', min_pm)
-            mandatory = wk.get('isMandatory', False)
+            
+            is_solo = cfg.can_be_solo and cfg.name not in BIG_STAFF_SHOPS
+            
+            # Defaults
+            min_am, min_pm = 1, 1
+            target_am, target_pm = 2, 2
+            max_staff = 10
+            is_mandatory = False
+            
+            # Get from staffing config
+            if staffing and staffing.weekly_schedule:
+                day_name = DAY_NAME_MAP.get(day_idx, "")
+                for d in staffing.weekly_schedule:
+                    if d.get("day", "")[:3].lower() == day_name.lower()[:3]:
+                        min_am = d.get("minAM", 1)
+                        min_pm = d.get("minPM", 1)
+                        target_am = d.get("targetAM", min_am)
+                        target_pm = d.get("targetPM", min_pm)
+                        max_staff = d.get("maxStaff", 10)
+                        is_mandatory = d.get("isMandatory", False)
+                        break
+            
+            # Sunday override for max staff
+            if day_idx == 6:
+                max_staff = min(max_staff or 10, sunday_max or 4)
+            
+            if is_solo:
+                min_am, min_pm = 1, 1
+                target_am, target_pm = 1, 1
+                max_staff = 2
+            
             demands.append(DemandEntry(
-                shop_id=cfg.id, shop_name=cfg.name, day_index=d,
-                target_am=target_am, target_pm=target_pm,
-                min_am=min_am, min_pm=min_pm,
-                is_mandatory=mandatory, is_solo=solo,
-                full_day_counts_as_both=True
+                shop_id=cfg.id,
+                shop_name=cfg.name,
+                day_index=day_idx,
+                min_am=min_am,
+                min_pm=min_pm,
+                target_am=target_am,
+                target_pm=target_pm,
+                is_mandatory=is_mandatory,
+                is_solo=is_solo,
+                max_staff=max_staff
             ))
+    
     return demands
 
-# ────────────────────────────────────────────────────────────────
-# Post-solve TRIMMER  – now close-time aware
-# ────────────────────────────────────────────────────────────────
-def apply_trimming(shifts, employee_hours, shop_configs: Dict[int, ShopConfig],
-                   *, max_first_am_trim=1, max_last_pm_trim=2):
-    """
-    For each shop-day we may knock 1 h off the AM start and/or
-    2 h off the PM/FULL end – but we must leave at least
-    min_staff_at_close people still present at the official close time.
-    """
+
+# ────────────────────────────────────────────────────────────────────────────
+# TRIMMING
+# ────────────────────────────────────────────────────────────────────────────
+def apply_trimming(shifts: List[Dict], employee_hours: Dict[int, float], 
+                   shop_configs) -> Tuple[List[Dict], Dict[int, float]]:
+    """Apply per-shop trimming based on DB config. Skip Sundays."""
     from collections import defaultdict
-    by_key = defaultdict(list)
-    for sh in shifts:
-        by_key[(sh['shopId'], sh['date'])].append(sh)
-
-    for (shop_id, day), lst in by_key.items():
-        cfg = shop_configs[shop_id]
-        close_min = parse_time(cfg.close_time)
-        need_close = cfg.min_staff_at_close
-
-        # count people already covering till close
-        def still_at_close(s):
-            return parse_time(s['endTime']) >= close_min - 1
-
-        while True:
-            # try to trim one PM/FULL that still overshoots close_min
-            cand = next((s for s in lst
-                         if s['shiftType'] in ('PM', 'FULL')
-                         and not s['isTrimmed']
-                         and parse_time(s['endTime']) == close_min), None)
-            if not cand:
-                break
-            # would trimming break the close coverage?
-            stayers = [s for s in lst if still_at_close(s)]
-            if len(stayers) <= need_close:
-                break  # cannot trim further
-            # apply trim
-            cand['endTime'] = format_time(parse_time(cand['endTime']) -
-                                          max_last_pm_trim * 60)
-            cand['hours'] -= max_last_pm_trim
-            cand['isTrimmed'] = True
-            employee_hours[cand['employeeId']] -= max_last_pm_trim
-
-        # AM start trims (much simpler – never harms close cover)
-        for s in lst:
-            if s['shiftType'] in ('AM', 'FULL') and not s['isTrimmed']:
-                s['startTime'] = format_time(parse_time(s['startTime']) +
-                                             max_first_am_trim * 60)
-                s['hours'] -= max_first_am_trim
-                s['isTrimmed'] = True
-                employee_hours[s['employeeId']] -= max_first_am_trim
+    
+    trimmed_count = 0
+    print("\n[TRIMMING PASS]")
+    
+    # Convert shop_configs to dict if needed
+    if isinstance(shop_configs, list):
+        configs_dict = {c.id: c for c in shop_configs}
+    else:
+        configs_dict = shop_configs
+    
+    # Group by shop+day
+    by_shop_day = defaultdict(list)
+    for s in shifts:
+        by_shop_day[(s["shopId"], s["date"])].append(s)
+    
+    for (shop_id, date), day_shifts in by_shop_day.items():
+        # Skip Sundays - no trimming
+        from datetime import datetime
+        shift_date = datetime.strptime(date, "%Y-%m-%d")
+        if shift_date.weekday() == 6:  # Sunday
+            continue
+        
+        cfg = configs_dict.get(shop_id)
+        if not cfg or not cfg.trim_enabled:
+            continue
+        
+        # Skip solo shops entirely
+        if cfg.can_be_solo and cfg.name not in BIG_STAFF_SHOPS:
+            continue
+        
+        am_shifts = [s for s in day_shifts if s["shiftType"] == "AM"]
+        pm_shifts = [s for s in day_shifts if s["shiftType"] == "PM"]
+        full_shifts = [s for s in day_shifts if s["shiftType"] == "FULL"]
+        
+        # AM trimming
+        if cfg.trim_am:
+            am_coverage = len(am_shifts) + len(full_shifts)
+            if am_coverage > cfg.trim_when_more_than:
+                trimmable = [s for s in (am_shifts + full_shifts) if not s.get("isTrimmed")]
+                can_trim = len(trimmable) - cfg.trim_when_more_than
+                for s in trimmable[:max(0, can_trim)]:
+                    start_mins = parse_time(s["startTime"])
+                    new_start = start_mins + (cfg.trim_from_start * 60)
+                    s["startTime"] = format_time(new_start)
+                    s["hours"] = s["hours"] - cfg.trim_from_start
+                    s["isTrimmed"] = True
+                    employee_hours[s["employeeId"]] -= cfg.trim_from_start
+                    trimmed_count += 1
+                    print(f"  AM trim: {s['employeeName']} at {cfg.name} {date}: start +{cfg.trim_from_start}h")
+        
+        # PM trimming
+        if cfg.trim_pm:
+            pm_coverage = len(pm_shifts) + len(full_shifts)
+            if pm_coverage > cfg.trim_when_more_than:
+                trimmable = [s for s in (pm_shifts + full_shifts) if not s.get("isTrimmed")]
+                can_trim = len(trimmable) - cfg.trim_when_more_than
+                for s in trimmable[:max(0, can_trim)]:
+                    end_mins = parse_time(s["endTime"])
+                    new_end = end_mins - (cfg.trim_from_end * 60)
+                    s["endTime"] = format_time(new_end)
+                    s["hours"] = s["hours"] - cfg.trim_from_end
+                    s["isTrimmed"] = True
+                    employee_hours[s["employeeId"]] -= cfg.trim_from_end
+                    trimmed_count += 1
+                    print(f"  PM trim: {s['employeeName']} at {cfg.name} {date}: end -{cfg.trim_from_end}h")
+    
+    print(f"  Total trims applied: {trimmed_count}")
     return shifts, employee_hours
 
-# ────────────────────────────────────────────────────────────────
-# ROSTER SOLVER
-# ────────────────────────────────────────────────────────────────
+
+# ────────────────────────────────────────────────────────────────────────────
+# SOLVER
+# ────────────────────────────────────────────────────────────────────────────
 class RosterSolver:
-    # ——————————————————————————————— constructor
     def __init__(
         self,
         employees: List[Employee],
@@ -340,255 +513,336 @@ class RosterSolver:
         leave_requests: List[LeaveRequest],
         week_start: str,
         fixed_days_off: Dict[str, List[int]],
-        previous_week_sunday_shifts: List[int],
+        previous_week_sunday_shifts: Dict[int, bool],
         shop_rules: Dict[int, Dict],
         special_demands: List[SpecialShiftDemand],
         shop_configs: Dict[int, ShopConfig]
     ):
-        self.week_start = week_start
+        self.employees = [e for e in employees if e.name not in EXCLUDED_EMPLOYEES and e.is_active]
         self.templates = templates
         self.demands = demands
-        self.shop_configs = shop_configs
-        # filter employees
-        self.employees = [e for e in employees
-                          if e.name not in EXCLUDED_EMPLOYEES and e.is_active]
-        self.employee_by_id = {e.id: e for e in self.employees}
-
-        # map primary/secondary shops
-        self.employee_shops = {}
-        for e in self.employees:
-            self.employee_shops[e.id] = {
-                'primary': e.primary_shop_id,
-                'secondary': list(e.secondary_shop_ids)
-            }
-        for a in assignments:
-            rec = self.employee_shops.setdefault(a.employee_id,
-                                                 {'primary': None, 'secondary': []})
-            if a.is_primary:
-                rec['primary'] = a.shop_id
-            else:
-                if a.shop_id not in rec['secondary']:
-                    rec['secondary'].append(a.shop_id)
-
-        # leave → dict[id] = set(day indexes)
-        self.leave = {}
-        for lr in leave_requests:
-            if lr.status != 'approved':
-                continue
-            self.leave.setdefault(lr.employee_id, set())
-            self.leave[lr.employee_id].update(range(7))
-
-        self.fixed_days_off = {k.lower(): set(v) for k, v in fixed_days_off.items()}
+        self.assignments = assignments
+        self.leave = leave_requests
+        self.week_start = datetime.strptime(week_start, "%Y-%m-%d")
+        self.fixed_days_off = fixed_days_off
+        self.prev_sunday = previous_week_sunday_shifts
+        self.shop_rules = shop_rules
         self.special_demands = special_demands
-
+        self.shop_configs = shop_configs
+        
         self.model = cp_model.CpModel()
-        self.shift_vars: Dict[Tuple[int, str], cp_model.IntVar] = {}
+        self.shift_vars: Dict[Tuple[int, str], Any] = {}
+        
+        print(f"\n[ROSTERPRO v32.3] Pattern-Based Solver")
+        print(f"Employees: {len(self.employees)} | Templates: {len(self.templates)} | Demands: {len(self.demands)}")
+        print(f"Excluded: {EXCLUDED_EMPLOYEES} | Special Requests: {len(self.special_demands)}")
 
-    # ——————————————————————————————— helpers
-    def _shops_for_emp(self, eid):
-        rec = self.employee_shops.get(eid, {})
-        shops = []
-        if rec.get('primary'):
-            shops.append(rec['primary'])
-        shops.extend(rec.get('secondary', []))
-        return list(dict.fromkeys(shops))  # dedup / keep order
+    def _shops_for_emp(self, emp: Employee) -> set:
+        """Get shops this employee can work at."""
+        assigned = {a.shop_id for a in self.assignments if a.employee_id == emp.id}
+        if assigned:
+            return assigned
+        # Default: all shops of same company
+        if isinstance(self.shop_configs, dict):
+            configs = self.shop_configs.values()
+        else:
+            configs = self.shop_configs
+        return {cfg.id for cfg in configs if cfg.company == emp.company and cfg.is_active}
 
-    def _is_primary(self, eid, sid):
-        return self.employee_shops.get(eid, {}).get('primary') == sid
+    def _is_primary(self, emp_id: int, shop_id: int) -> bool:
+        for a in self.assignments:
+            if a.employee_id == emp_id and a.shop_id == shop_id:
+                return a.is_primary
+        return False
 
-    # ——————————————————————————————— build variables
     def _build_variables(self):
-        for emp in self.employees:
-            allowed = self._shops_for_emp(emp.id)
-            for t in self.templates:
-                if t.shop_id not in allowed:
-                    continue
-                if emp.am_only and t.shift_type in ('PM', 'FULL'):
-                    continue
-                if emp.id in self.leave and t.day_index in self.leave[emp.id]:
-                    continue
-                if emp.name.lower() in self.fixed_days_off and \
-                   t.day_index in self.fixed_days_off[emp.name.lower()]:
-                    continue
-                # company wall (unless BOTH)
-                shop_c = self.shop_configs[t.shop_id].company
-                if emp.company.upper() != 'BOTH' and emp.company != shop_c:
-                    continue
-                self.shift_vars[(emp.id, t.id)] = \
-                    self.model.NewBoolVar(f's_{emp.id}_{t.id}')
+        print("\n[BUILDING MODEL]")
+        for e in self.employees:
+            eligible_shops = self._shops_for_emp(e)
 
-    # ——————————————————————————————— coverage constraints (32.1 logic)
-    def _add_coverage_constraints(self):
-        for d in self.demands:
-            sid, day = d.shop_id, d.day_index
-            am = pm = full = []
-            for (eid, tid), v in self.shift_vars.items():
-                tt = next(x for x in self.templates if x.id == tid)
-                if tt.shop_id != sid or tt.day_index != day:
+            for t in self.templates:
+                if t.shop_id not in eligible_shops:
                     continue
-                if tt.shift_type == 'AM':
+                key = (e.id, t.id)
+                self.shift_vars[key] = self.model.NewBoolVar(f"shift_{e.id}_{t.id}")
+        print(f"Variables: {len(self.shift_vars)}")
+                # Debug: check which employees can work where
+        print("\n[DEBUG] Employee-Shop Eligibility:")
+        for e in self.employees[:5]:  # Just first 5
+            shops = self._shops_for_emp(e)
+            shop_names = [self.shop_configs[sid].name for sid in shops if sid in self.shop_configs]
+            print(f"  {e.name} ({e.company}): {shop_names}")
+
+
+    def _add_coverage_constraints(self):
+        print("\n[COVERAGE CONSTRAINTS]")
+        for d in self.demands:
+            if isinstance(self.shop_configs, dict):
+                cfg = self.shop_configs.get(d.shop_id)
+            else:
+                cfg = next((c for c in self.shop_configs if c.id == d.shop_id), None)
+            
+            solo_str = "SOLO" if d.is_solo else f"min {d.min_am}AM/{d.min_pm}PM"
+            print(f"  {d.shop_name} {DAY_NAME_MAP.get(d.day_index, '?')}: {solo_str}, maxStaff={d.max_staff}")
+            
+            am = []
+            pm = []
+            full = []
+            
+            for (eid, tid), v in self.shift_vars.items():
+                tt = next((x for x in self.templates if x.id == tid), None)
+                if not tt or tt.shop_id != d.shop_id or tt.day_index != d.day_index:
+                    continue
+                if tt.shift_type == "AM":
                     am.append(v)
-                elif tt.shift_type == 'PM':
+                elif tt.shift_type == "PM":
                     pm.append(v)
                 else:
                     full.append(v)
+            
             am_cov = am + full
             pm_cov = pm + full
+            all_vars = am + pm + full
+            
             if d.is_solo:
-                self.model.Add(sum(am_cov) == 1)
-                self.model.Add(sum(pm_cov) == 1)
+                # Solo shop: Either 1 FULL OR (1 AM + 1 PM), not both patterns
+                if am_cov:
+                    self.model.Add(sum(am_cov) >= 1)
+                if pm_cov:
+                    self.model.Add(sum(pm_cov) >= 1)
+                # If FULL is used, no separate AM/PM needed
+                if full and am and pm:
+                    # sum(am) + sum(pm) == 0 when sum(full) >= 1
+                    # This means: if full, then no AM/PM splits
+                    for fv in full:
+                        self.model.Add(sum(am) <= 1 - fv)
+                        self.model.Add(sum(pm) <= 1 - fv)
+                # Max 2 total shifts
+                if all_vars:
+                    self.model.Add(sum(all_vars) <= 2)
             else:
-                self.model.Add(sum(am_cov) >= d.min_am)
-                self.model.Add(sum(pm_cov) >= d.min_pm)
+                # Non-solo (big shops): enforce real minimums
+                min_am = max(d.min_am, 2) if d.shop_name in BIG_STAFF_SHOPS else max(d.min_am, 1)
+                min_pm = max(d.min_pm, 2) if d.shop_name in BIG_STAFF_SHOPS else max(d.min_pm, 1)
+                
+                if am_cov:
+                    self.model.Add(sum(am_cov) >= min_am)
+                if pm_cov:
+                    self.model.Add(sum(pm_cov) >= min_pm)
+                
+                # Balance constraint: AM and PM should be roughly equal
+                # Difference between AM-only and PM-only shifts should be <= 2
+                if am and pm:
+                    am_only_count = self.model.NewIntVar(0, 10, f"am_only_{d.shop_id}_{d.day_index}")
+                    pm_only_count = self.model.NewIntVar(0, 10, f"pm_only_{d.shop_id}_{d.day_index}")
+                    self.model.Add(am_only_count == sum(am))
+                    self.model.Add(pm_only_count == sum(pm))
+                    # |AM - PM| <= 2
+                    diff = self.model.NewIntVar(-10, 10, f"diff_{d.shop_id}_{d.day_index}")
+                    self.model.Add(diff == am_only_count - pm_only_count)
+                    self.model.Add(diff <= 2)
+                    self.model.Add(diff >= -2)
+                
+                # Mandatory targets
                 if d.is_mandatory:
-                    self.model.Add(sum(am_cov) >= d.target_am)
-                    self.model.Add(sum(pm_cov) >= d.target_pm)
-                self.model.Add(sum(full) <= MAX_FULLDAY_PER_SHOP)
+                    if am_cov:
+                        self.model.Add(sum(am_cov) >= d.target_am)
+                    if pm_cov:
+                        self.model.Add(sum(pm_cov) >= d.target_pm)
+                
+                # Max staff constraint
+                if all_vars:
+                    self.model.Add(sum(all_vars) <= d.max_staff)
+                
+                # Limit FULL shifts at big shops
+                if d.shop_name in BIG_STAFF_SHOPS:
+                    if full:
+                        self.model.Add(sum(full) <= 1)
+                else:
+                    if full:
+                        self.model.Add(sum(full) <= MAX_FULLDAY_PER_SHOP)
 
-    # ——————————————————————————————— special requests (kept simple)
+
     def _add_special_constraints(self):
-        for sp in self.special_demands:
-            vars_here = []
-            for (eid, tid), v in self.shift_vars.items():
-                if eid != sp.employee_id:
-                    continue
-                t = next(x for x in self.templates if x.id == tid)
-                if t.shop_id == sp.shop_id and t.day_index == sp.day_index \
-                   and t.shift_type == sp.shift_type:
-                    vars_here.append(v)
-            if vars_here:
-                self.model.Add(sum(vars_here) >= 1)
+        print("\n[SPECIAL REQUEST CONSTRAINTS]")
+        if not self.special_demands:
+            print("  No special requests")
+            return
+        for sd in self.special_demands:
+            print(f"  {sd.shop_name} day {sd.day_index}: {sd.shift_type} {sd.start_time}-{sd.end_time}")
 
-    # ——————————————————————————————— employee constraints
     def _add_employee_constraints(self):
+        print("\n[EMPLOYEE CONSTRAINTS]")
         for e in self.employees:
-            # max one shift per day
-            for d in range(7):
-                vars_d = [v for (eid, tid), v in self.shift_vars.items()
-                          if eid == e.id and
-                          next(x for x in self.templates if x.id == tid).day_index == d]
-                if vars_d:
-                    self.model.Add(sum(vars_d) <= 1)
-            # max 6 shifts/week
-            week_vars = [v for (eid, _), v in self.shift_vars.items() if eid == e.id]
-            if week_vars:
-                self.model.Add(sum(week_vars) <= 6)
-            # no consecutive FULL
-            for d in range(6):
-                full_now = [v for (eid, tid), v in self.shift_vars.items()
-                            if eid == e.id and
-                            (t := next(x for x in self.templates if x.id == tid)).day_index == d
-                            and t.shift_type == 'FULL']
-                full_next = [v for (eid, tid), v in self.shift_vars.items()
-                             if eid == e.id and
-                             (t := next(x for x in self.templates if x.id == tid)).day_index == d+1
-                             and t.shift_type == 'FULL']
-                if full_now and full_next:
-                    self.model.Add(sum(full_now) + sum(full_next) <= 1)
-            # HARD 40 h for full-timers
-            if e.employment_type.lower().startswith('full'):
-                hour_terms = [v * int(next(x for x in self.templates
-                                           if x.id == tid).hours * 10)
-                              for (eid, tid), v in self.shift_vars.items() if eid == e.id]
-                if hour_terms:
-                    total = self.model.NewIntVar(0, 600, f'ft_{e.id}')
-                    self.model.Add(total == sum(hour_terms))
-                    self.model.Add(total >= 400)
-
-            # student cap 20 h
-            if e.employment_type.lower() == 'student':
-                hour_terms = [v * int(next(x for x in self.templates
-                                           if x.id == tid).hours * 10)
-                              for (eid, tid), v in self.shift_vars.items() if eid == e.id]
+            emp_vars = [(tid, v) for (eid, tid), v in self.shift_vars.items() if eid == e.id]
+            
+            # Max 1 shift per day
+            for day_idx in range(7):
+                day_vars = [v for tid, v in emp_vars 
+                           if any(t.id == tid and t.day_index == day_idx for t in self.templates)]
+                if day_vars:
+                    self.model.Add(sum(day_vars) <= 1)
+            
+            # Max 6 shifts per week
+            all_emp_vars = [v for _, v in emp_vars]
+            if all_emp_vars:
+                self.model.Add(sum(all_emp_vars) <= 6)
+            
+            # No consecutive FULL days
+            for day_idx in range(6):
+                full_today = [v for tid, v in emp_vars 
+                             if any(t.id == tid and t.day_index == day_idx and t.shift_type == "FULL" 
+                                   for t in self.templates)]
+                full_tomorrow = [v for tid, v in emp_vars 
+                                if any(t.id == tid and t.day_index == day_idx + 1 and t.shift_type == "FULL" 
+                                      for t in self.templates)]
+                if full_today and full_tomorrow:
+                    self.model.Add(sum(full_today) + sum(full_tomorrow) <= 1)
+            
+            # Student cap: 20h
+            if e.employment_type.lower() == "student":
+                hour_terms = []
+                for tid, v in emp_vars:
+                    t = next((x for x in self.templates if x.id == tid), None)
+                    if t:
+                        hour_terms.append(v * int(t.hours * 10))
                 if hour_terms:
                     self.model.Add(sum(hour_terms) <= 200)
 
-    # ——————————————————————————————— objective
     def _build_objective(self):
+        print("\n[BUILDING OBJECTIVE]")
         terms = []
+        
         for e in self.employees:
-            hours10 = [v * int(next(x for x in self.templates if x.id == tid).hours * 10)
-                       for (eid, tid), v in self.shift_vars.items() if eid == e.id]
-            if not hours10:
-                continue
-            tot = self.model.NewIntVar(0, 600, f'h_{e.id}')
-            self.model.Add(tot == sum(hours10))
-            tgt10 = get_employee_target_hours(e.employment_type) * 10
-            under = self.model.NewIntVar(0, 500, f'uh_{e.id}')
-            over  = self.model.NewIntVar(0, 500, f'oh_{e.id}')
-            exc   = self.model.NewIntVar(0, 500, f'ex_{e.id}')
-            self.model.Add(under >= tgt10 - tot)
-            self.model.Add(over  >= tot - tgt10)
-            self.model.Add(exc   >= tot - (tgt10 + 50))
-            terms += [under * PENALTY_UNDER_HOURS,
-                      over  * PENALTY_OVERTIME,
-                      exc   * PENALTY_EXCESSIVE_OT]
-        # penalise FULL
+            emp_vars = [(tid, v) for (eid, tid), v in self.shift_vars.items() if eid == e.id]
+            target = get_employee_target_hours(e.employment_type) * 10
+            
+            # Calculate total hours for this employee
+            hour_terms = []
+            for tid, v in emp_vars:
+                t = next((x for x in self.templates if x.id == tid), None)
+                if t and t.day_index != 6:  # Exclude Sunday from weekly hours target
+                    hour_terms.append(v * int(t.hours * 10))
+            
+            if hour_terms:
+                total = self.model.NewIntVar(0, 600, f"hours_{e.id}")
+                self.model.Add(total == sum(hour_terms))
+                
+                under = self.model.NewIntVar(0, 500, f"under_{e.id}")
+                over = self.model.NewIntVar(0, 200, f"over_{e.id}")
+                exc = self.model.NewIntVar(0, 100, f"exc_{e.id}")
+                
+                self.model.Add(under >= target - total)
+                self.model.Add(over >= total - target)
+                self.model.Add(exc >= total - target - OT_CAP * 10)
+                
+                terms.extend([
+                    under * PENALTY_UNDER_HOURS,
+                    over * PENALTY_OVERTIME,
+                    exc * PENALTY_EXCESSIVE_OT
+                ])
+        
+        # FULL shift penalties
         for (eid, tid), v in self.shift_vars.items():
-            t = next(x for x in self.templates if x.id == tid)
-            if t.shift_type == 'FULL':
-                terms.append(v * (PENALTY_FULL_SHIFT_BIG if t.shop_name in BIG_STAFF_SHOPS
-                                  else PENALTY_FULL_SHIFT))
-        # cross-shop
-        for (eid, tid), v in self.shift_vars.items():
-            if not self._is_primary(eid, next(x for x in self.templates if x.id == tid).shop_id):
-                terms.append(v * PENALTY_CROSS_SHOP)
-        self.model.Minimize(sum(terms))
-
-    # ——————————————————————————————— solve
-    # ——————————————————————————————— solve
-    def solve(self, time_limit_seconds: int = 120):
-        limit = time_limit_seconds
-        try:
-            self._build_variables()
-            self._build_variables()
-            self._add_coverage_constraints()
-            self._add_special_constraints()
-            self._add_employee_constraints()
-            self._build_objective()
-
-            solver = cp_model.CpSolver()
-            solver.parameters.max_time_in_seconds = limit
-            solver.parameters.num_search_workers = 8
-            status = solver.Solve(self.model)
-            if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-                return {'success': False, 'status': 'INFEASIBLE', 'shifts': []}
-
-            from datetime import datetime, timedelta
-            week0 = datetime.strptime(self.week_start, '%Y-%m-%d')
-            shifts, emp_hours = [], {e.id: 0.0 for e in self.employees}
-
+            t = next((x for x in self.templates if x.id == tid), None)
+            if t and t.shift_type == "FULL":
+                if t.shop_name in BIG_STAFF_SHOPS:
+                    terms.append(v * PENALTY_FULL_SHIFT_BIG)
+                else:
+                    terms.append(v * PENALTY_FULL_SHIFT)
+        
+        # Cross-shop penalty
+        for e in self.employees:
+            primary_shops = {a.shop_id for a in self.assignments 
+                           if a.employee_id == e.id and a.is_primary}
             for (eid, tid), v in self.shift_vars.items():
-                if solver.Value(v) == 0:
+                if eid != e.id:
                     continue
-                t = next(x for x in self.templates if x.id == tid)
-                date = (week0 + timedelta(days=t.day_index)).strftime('%Y-%m-%d')
-                shifts.append({
-                    'id': f'{tid}_{eid}', 'date': date,
-                    'shopId': t.shop_id, 'shopName': t.shop_name,
-                    'employeeId': eid, 'employeeName': self.employee_by_id[eid].name,
-                    'startTime': t.start_time, 'endTime': t.end_time,
-                    'hours': t.hours, 'shiftType': t.shift_type,
-                    'isTrimmed': False
-                })
-                emp_hours[eid] += t.hours
+                t = next((x for x in self.templates if x.id == tid), None)
+                if t and t.shop_id not in primary_shops:
+                    terms.append(v * PENALTY_CROSS_SHOP)
+        
+        print(f"{len(terms)} terms")
+        if terms:
+            self.model.Minimize(sum(terms))
 
-            # trimming pass (close-time aware)
-            shifts, emp_hours = apply_trimming(shifts, emp_hours,
-                                               self.shop_configs,
-                                               max_first_am_trim=1,
-                                               max_last_pm_trim=2)
-
-            return {
-                'success': True,
-                'status': 'OPTIMAL',
-                'shifts': shifts,
-                'employeeHours': {str(k): v for k, v in emp_hours.items()}
-            }
-        except Exception as ex:
-            traceback.print_exc()
-            return {'success': False, 'status': 'ERROR', 'message': str(ex)}
-
-# ────────────────────────────────────────────────────────────────
-# END OF FILE
-# ────────────────────────────────────────────────────────────────
+    def solve(self, time_limit_seconds: int = 120) -> Dict:
+        self._build_variables()
+        self._add_coverage_constraints()
+        self._add_special_constraints()
+        self._add_employee_constraints()
+        self._build_objective()
+        
+        print(f"\n[SOLVING] Time limit: {time_limit_seconds}s")
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = time_limit_seconds
+        status = solver.Solve(self.model)
+        
+        status_name = {
+            cp_model.OPTIMAL: "OPTIMAL",
+            cp_model.FEASIBLE: "FEASIBLE",
+            cp_model.INFEASIBLE: "INFEASIBLE",
+            cp_model.MODEL_INVALID: "MODEL_INVALID",
+            cp_model.UNKNOWN: "UNKNOWN"
+        }.get(status, "UNKNOWN")
+        
+        print(f"[RESULT] {status_name}")
+        
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            return {"success": False, "status": status_name, "error": "Could not find feasible solution"}
+        
+        shifts = []
+        emp_hours: Dict[int, float] = {e.id: 0 for e in self.employees}
+        
+        for (eid, tid), v in self.shift_vars.items():
+            if solver.Value(v) == 1:
+                t = next((x for x in self.templates if x.id == tid), None)
+                e = next((x for x in self.employees if x.id == eid), None)
+                if t and e:
+                    shift_date = self.week_start + timedelta(days=t.day_index)
+                    shifts.append({
+                        "id": f"{eid}_{tid}",
+                        "date": shift_date.strftime("%Y-%m-%d"),
+                        "shopId": t.shop_id,
+                        "shopName": t.shop_name,
+                        "employeeId": eid,
+                        "employeeName": e.name,
+                        "startTime": t.start_time,
+                        "endTime": t.end_time,
+                        "hours": t.hours,
+                        "shiftType": t.shift_type,
+                        "isTrimmed": False
+                    })
+                    emp_hours[eid] += t.hours
+        
+        # Apply trimming
+        shifts, emp_hours = apply_trimming(shifts, emp_hours, self.shop_configs)
+        
+        # Print coverage summary
+        print("\n[COVERAGE SUMMARY]")
+        from collections import defaultdict
+        by_shop_day = defaultdict(lambda: {"AM": 0, "PM": 0, "FULL": 0})
+        for s in shifts:
+            by_shop_day[(s["shopName"], s["date"])][s["shiftType"]] += 1
+        for (shop, date), counts in sorted(by_shop_day.items()):
+            print(f"  {shop} {date}: AM={counts['AM']}, PM={counts['PM']}, FULL={counts['FULL']}")
+        
+        # Print employee hours
+        print("\n[EMPLOYEE HOURS]")
+        total_ot = 0
+        for e in self.employees:
+            hours = emp_hours.get(e.id, 0)
+            target = get_employee_target_hours(e.employment_type)
+            ot = max(0, hours - target)
+            total_ot += ot
+            ot_str = f" [+{ot:.1f}h OT]" if ot > 0 else ""
+            print(f"  {e.name}: {hours:.1f}h/{target}h{ot_str}")
+        print(f"\n[OVERTIME TOTAL] {total_ot:.1f}h")
+        print(f"[SHIFTS GENERATED] {len(shifts)}")
+        
+        return {
+            "success": True,
+            "status": status_name,
+            "shifts": shifts,
+            "employeeHours": {str(k): v for k, v in emp_hours.items()}
+        }
