@@ -417,13 +417,13 @@ def build_demands_from_config(shop_configs) -> List[DemandEntry]:
             if day_idx == 6:
                 max_staff = min(max_staff or 10, sunday_max or 4)
             
-            # Fgura and Carters need 2 staff on Sundays
-            if day_idx == 6 and cfg.name in ('Fgura', 'Carters'):
+            # Fgura, Carters, and Hamrun need 2 AM + 2 PM on Sundays
+            if day_idx == 6 and cfg.name in ('Fgura', 'Carters', 'Hamrun'):
                 min_am = 2
                 min_pm = 2
                 target_am = 2
                 target_pm = 2
-                max_staff = 2
+                max_staff = 4
             
             if is_solo:
                 min_am, min_pm = 1, 1
@@ -657,12 +657,17 @@ class RosterSolver:
             pm_cov = pm + full
             all_vars = am + pm + full
             
-                        # Special: Fgura and Carters need 2 staff on Sundays
-            if d.day_index == 6 and d.shop_name in ('Fgura', 'Carters'):
+            # Special: Fgura, Carters, and Hamrun need 2 AM + 2 PM on Sundays
+            if d.day_index == 6 and d.shop_name in ('Fgura', 'Carters', 'Hamrun'):
+                if am:
+                    self.model.Add(sum(am) >= 2)
+                if pm:
+                    self.model.Add(sum(pm) >= 2)
+                if full:
+                    self.model.Add(sum(full) == 0)
                 if all_vars:
-                    self.model.Add(sum(all_vars) >= 2)
-                    self.model.Add(sum(all_vars) <= 2)
-                continue  # Skip normal logic for this case
+                    self.model.Add(sum(all_vars) <= 4)
+                continue
 
 
             if d.is_solo:
