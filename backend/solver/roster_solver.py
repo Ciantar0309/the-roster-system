@@ -240,7 +240,7 @@ def build_templates_from_config(shop_configs) -> List[ShiftTemplate]:
             # Skip Sunday if closed
             if day_idx == 6 and sunday_closed:
                 continue
-            
+
             # Get times for this day
             sunday_dict = cfg.sunday if isinstance(cfg.sunday, dict) else {}
             if day_idx == 6 and sunday_dict.get("customHours", {}).get("enabled", False):
@@ -256,15 +256,13 @@ def build_templates_from_config(shop_configs) -> List[ShiftTemplate]:
             midpoint = (open_mins + close_mins) // 2
             
             am_start = day_open
-            am_end = format_time(midpoint + 30)
-            pm_start = format_time(midpoint - 30)
+            am_end = format_time(midpoint)
+            pm_start = format_time(midpoint)
             pm_end = day_close
             
             am_hours = calculate_hours(am_start, am_end)
             pm_hours = calculate_hours(pm_start, pm_end)
             full_hours = calculate_hours(am_start, pm_end)
-            
-            is_solo = cfg.can_be_solo and cfg.name not in BIG_STAFF_SHOPS
             
             # Get day config from staffing
             day_config = None
@@ -276,6 +274,23 @@ def build_templates_from_config(shop_configs) -> List[ShiftTemplate]:
                         break
             
             is_mandatory = day_config.get("isMandatory", False) if day_config else False
+            
+            # Short day (6 hours or less, like Sunday 8-13): only FULL template
+            if full_hours <= 6:
+                templates.append(ShiftTemplate(
+                    id=f"{cfg.id}_{day_idx}_FULL",
+                    shop_id=cfg.id,
+                    shop_name=cfg.name,
+                    day_index=day_idx,
+                    shift_type="FULL",
+                    start_time=am_start,
+                    end_time=pm_end,
+                    hours=full_hours,
+                    is_mandatory=is_mandatory
+                ))
+                continue  # Skip AM/PM for short days
+            
+            is_solo = cfg.can_be_solo and cfg.name not in BIG_STAFF_SHOPS
             
             # Solo shops: FULL, AM, PM templates
             if is_solo:
@@ -402,6 +417,14 @@ def build_demands_from_config(shop_configs) -> List[DemandEntry]:
             if day_idx == 6:
                 max_staff = min(max_staff or 10, sunday_max or 4)
             
+            # Fgura and Carters need 2 staff on Sundays
+            if day_idx == 6 and cfg.name in ('Fgura', 'Carters'):
+                min_am = 2
+                min_pm = 2
+                target_am = 2
+                target_pm = 2
+                max_staff = 2
+            
             if is_solo:
                 min_am, min_pm = 1, 1
                 target_am, target_pm = 1, 1
@@ -423,6 +446,8 @@ def build_demands_from_config(shop_configs) -> List[DemandEntry]:
     return demands
 
 
+
+
 # ────────────────────────────────────────────────────────────────────────────
 # TRIMMING
 # ────────────────────────────────────────────────────────────────────────────
@@ -430,6 +455,7 @@ def apply_trimming(shifts: List[Dict], employee_hours: Dict[int, float],
                    shop_configs) -> Tuple[List[Dict], Dict[int, float]]:
     """Apply per-shop trimming based on DB config. Skip Sundays."""
     from collections import defaultdict
+    from datetime import datetime
     
     trimmed_count = 0
     print("\n[TRIMMING PASS]")
@@ -437,8 +463,10 @@ def apply_trimming(shifts: List[Dict], employee_hours: Dict[int, float],
     # Convert shop_configs to dict if needed
     if isinstance(shop_configs, list):
         configs_dict = {c.id: c for c in shop_configs}
-    else:
+    elif isinstance(shop_configs, dict):
         configs_dict = shop_configs
+    else:
+        configs_dict = {}
     
     # Group by shop+day
     by_shop_day = defaultdict(list)
@@ -446,8 +474,7 @@ def apply_trimming(shifts: List[Dict], employee_hours: Dict[int, float],
         by_shop_day[(s["shopId"], s["date"])].append(s)
     
     for (shop_id, date), day_shifts in by_shop_day.items():
-        # Skip Sundays - no trimming
-        from datetime import datetime
+        # Skip Sundays - NO trimming on Sundays
         shift_date = datetime.strptime(date, "%Y-%m-%d")
         if shift_date.weekday() == 6:  # Sunday
             continue
@@ -459,6 +486,11 @@ def apply_trimming(shifts: List[Dict], employee_hours: Dict[int, float],
         # Skip solo shops entirely
         if cfg.can_be_solo and cfg.name not in BIG_STAFF_SHOPS:
             continue
+        
+        # Skip if only 2 or fewer people scheduled this day
+        if len(day_shifts) <= 2:
+            continue
+
         
         am_shifts = [s for s in day_shifts if s["shiftType"] == "AM"]
         pm_shifts = [s for s in day_shifts if s["shiftType"] == "PM"]
@@ -498,6 +530,7 @@ def apply_trimming(shifts: List[Dict], employee_hours: Dict[int, float],
     
     print(f"  Total trims applied: {trimmed_count}")
     return shifts, employee_hours
+
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -573,6 +606,26 @@ class RosterSolver:
             shop_names = [self.shop_configs[sid].name for sid in shops if sid in self.shop_configs]
             print(f"  {e.name} ({e.company}): {shop_names}")
 
+                # Debug: show assignments for Hamrun
+        print("\n[DEBUG] Hamrun Assignments:")
+        hamrun_id = None
+        if isinstance(self.shop_configs, dict):
+            for sid, cfg in self.shop_configs.items():
+                if cfg.name == "Hamrun":
+                    hamrun_id = sid
+                    break
+        else:
+            for cfg in self.shop_configs:
+                if cfg.name == "Hamrun":
+                    hamrun_id = cfg.id
+                    break
+        if hamrun_id:
+            for a in self.assignments:
+                if a.shop_id == hamrun_id:
+                    emp = next((e for e in self.employees if e.id == a.employee_id), None)
+                    print(f"  {emp.name if emp else a.employee_id} - {'PRIMARY' if a.is_primary else 'SECONDARY'}")
+    
+
 
     def _add_coverage_constraints(self):
         print("\n[COVERAGE CONSTRAINTS]")
@@ -604,65 +657,76 @@ class RosterSolver:
             pm_cov = pm + full
             all_vars = am + pm + full
             
+                        # Special: Fgura and Carters need 2 staff on Sundays
+            if d.day_index == 6 and d.shop_name in ('Fgura', 'Carters'):
+                if all_vars:
+                    self.model.Add(sum(all_vars) >= 2)
+                    self.model.Add(sum(all_vars) <= 2)
+                continue  # Skip normal logic for this case
+
+
             if d.is_solo:
-                # Solo shop: Either 1 FULL OR (1 AM + 1 PM), not both patterns
+                # Solo shop: Either 1 FULL OR (1 AM + 1 PM), never mixed
                 if am_cov:
                     self.model.Add(sum(am_cov) >= 1)
                 if pm_cov:
                     self.model.Add(sum(pm_cov) >= 1)
-                # If FULL is used, no separate AM/PM needed
+                
+                # If any FULL, no AM or PM allowed (exclusive)
                 if full and am and pm:
-                    # sum(am) + sum(pm) == 0 when sum(full) >= 1
-                    # This means: if full, then no AM/PM splits
-                    for fv in full:
-                        self.model.Add(sum(am) <= 1 - fv)
-                        self.model.Add(sum(pm) <= 1 - fv)
-                # Max 2 total shifts
+                    has_full = self.model.NewBoolVar(f"has_full_{d.shop_id}_{d.day_index}")
+                    self.model.Add(sum(full) >= 1).OnlyEnforceIf(has_full)
+                    self.model.Add(sum(full) == 0).OnlyEnforceIf(has_full.Not())
+                    self.model.Add(sum(am) == 0).OnlyEnforceIf(has_full)
+                    self.model.Add(sum(pm) == 0).OnlyEnforceIf(has_full)
+                
+                # Max 1 FULL, max 2 total
+                if full:
+                    self.model.Add(sum(full) <= 1)
                 if all_vars:
                     self.model.Add(sum(all_vars) <= 2)
             else:
-                # Non-solo (big shops): enforce real minimums
-                min_am = max(d.min_am, 2) if d.shop_name in BIG_STAFF_SHOPS else max(d.min_am, 1)
-                min_pm = max(d.min_pm, 2) if d.shop_name in BIG_STAFF_SHOPS else max(d.min_pm, 1)
+                # Non-solo BIG SHOPS
+                if d.shop_name in BIG_STAFF_SHOPS:
+                    # Sunday special case: limited staff, allow FULL
+                    if d.day_index == 6:  # Sunday
+                        if am_cov:
+                            self.model.Add(sum(am_cov) >= 1)
+                        if pm_cov:
+                            self.model.Add(sum(pm_cov) >= 1)
+                        if full:
+                            self.model.Add(sum(full) <= 2)
+                    else:
+                        # Mon-Sat: HARD minimum 2 AM and 2 PM
+                        if am_cov:
+                            self.model.Add(sum(am_cov) >= 2)
+                        if pm_cov:
+                            self.model.Add(sum(pm_cov) >= 2)
+                        # NO full shifts Mon-Sat - force AM/PM splits
+                        if full:
+                            self.model.Add(sum(full) == 0)
+                else:
+                    if am_cov:
+                        self.model.Add(sum(am_cov) >= 1)
+                    if pm_cov:
+                        self.model.Add(sum(pm_cov) >= 1)
+                    if full:
+                        self.model.Add(sum(full) <= MAX_FULLDAY_PER_SHOP)
+
+
                 
-                if am_cov:
-                    self.model.Add(sum(am_cov) >= min_am)
-                if pm_cov:
-                    self.model.Add(sum(pm_cov) >= min_pm)
-                
-                # Balance constraint: AM and PM should be roughly equal
-                # Difference between AM-only and PM-only shifts should be <= 2
-                if am and pm:
-                    am_only_count = self.model.NewIntVar(0, 10, f"am_only_{d.shop_id}_{d.day_index}")
-                    pm_only_count = self.model.NewIntVar(0, 10, f"pm_only_{d.shop_id}_{d.day_index}")
-                    self.model.Add(am_only_count == sum(am))
-                    self.model.Add(pm_only_count == sum(pm))
-                    # |AM - PM| <= 2
-                    diff = self.model.NewIntVar(-10, 10, f"diff_{d.shop_id}_{d.day_index}")
-                    self.model.Add(diff == am_only_count - pm_only_count)
-                    self.model.Add(diff <= 2)
-                    self.model.Add(diff >= -2)
-                
-                # Mandatory targets
+                # MANDATORY days: enforce target coverage
                 if d.is_mandatory:
                     if am_cov:
                         self.model.Add(sum(am_cov) >= d.target_am)
                     if pm_cov:
                         self.model.Add(sum(pm_cov) >= d.target_pm)
                 
-                # Max staff constraint
+                # Max staff
                 if all_vars:
                     self.model.Add(sum(all_vars) <= d.max_staff)
+
                 
-                # Limit FULL shifts at big shops
-                if d.shop_name in BIG_STAFF_SHOPS:
-                    if full:
-                        self.model.Add(sum(full) <= 1)
-                else:
-                    if full:
-                        self.model.Add(sum(full) <= MAX_FULLDAY_PER_SHOP)
-
-
     def _add_special_constraints(self):
         print("\n[SPECIAL REQUEST CONSTRAINTS]")
         if not self.special_demands:
@@ -750,6 +814,55 @@ class RosterSolver:
                     terms.append(v * PENALTY_FULL_SHIFT_BIG)
                 else:
                     terms.append(v * PENALTY_FULL_SHIFT)
+
+        # Penalty for unbalanced AM/PM at big shops
+        PENALTY_UNBALANCED = 500
+        for d in self.demands:
+            if d.is_solo or d.shop_name not in BIG_STAFF_SHOPS:
+                continue
+            am = []
+            pm = []
+            for (eid, tid), v in self.shift_vars.items():
+                tt = next((x for x in self.templates if x.id == tid), None)
+                if not tt or tt.shop_id != d.shop_id or tt.day_index != d.day_index:
+                    continue
+                if tt.shift_type == "AM":
+                    am.append(v)
+                elif tt.shift_type == "PM":
+                    pm.append(v)
+            if am and pm:
+                # Penalize difference between AM-only and PM-only
+                am_count = self.model.NewIntVar(0, 10, f"am_cnt_{d.shop_id}_{d.day_index}")
+                pm_count = self.model.NewIntVar(0, 10, f"pm_cnt_{d.shop_id}_{d.day_index}")
+                self.model.Add(am_count == sum(am))
+                self.model.Add(pm_count == sum(pm))
+                diff_pos = self.model.NewIntVar(0, 10, f"diff_pos_{d.shop_id}_{d.day_index}")
+                diff_neg = self.model.NewIntVar(0, 10, f"diff_neg_{d.shop_id}_{d.day_index}")
+                self.model.Add(diff_pos >= am_count - pm_count)
+                self.model.Add(diff_neg >= pm_count - am_count)
+                terms.append(diff_pos * PENALTY_UNBALANCED)
+                terms.append(diff_neg * PENALTY_UNBALANCED)
+            
+        # Penalty for PM > AM at big shops (prefer AM stronger)
+        PENALTY_PM_STRONGER = 300
+        for d in self.demands:
+            if d.is_solo or d.shop_name not in BIG_STAFF_SHOPS:
+                continue
+            am = []
+            pm = []
+            for (eid, tid), v in self.shift_vars.items():
+                tt = next((x for x in self.templates if x.id == tid), None)
+                if not tt or tt.shop_id != d.shop_id or tt.day_index != d.day_index:
+                    continue
+                if tt.shift_type == "AM":
+                    am.append(v)
+                elif tt.shift_type == "PM":
+                    pm.append(v)
+            if am and pm:
+                # Penalize when PM > AM
+                pm_excess = self.model.NewIntVar(0, 10, f"pm_excess_{d.shop_id}_{d.day_index}")
+                self.model.Add(pm_excess >= sum(pm) - sum(am))
+                terms.append(pm_excess * PENALTY_PM_STRONGER)
         
         # Cross-shop penalty
         for e in self.employees:
