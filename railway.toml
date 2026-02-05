@@ -1,0 +1,6 @@
+﻿[build]
+builder = "nixpacks"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
