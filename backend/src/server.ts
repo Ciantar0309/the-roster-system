@@ -1000,6 +1000,114 @@ app.post('/api/auth/change-password', async (req, res) => {
   }
 });
 
+// ============== USERS MANAGEMENT ==============
+
+// Get all users (admin only)
+app.get('/api/users', (req, res) => {
+  try {
+    const users = db.prepare(`
+      SELECT u.id, u.email, u.role, u.employeeId, u.isActive, u.lastLogin, u.createdAt,
+             u.inviteToken, u.inviteExpires,
+             e.name as employeeName, e.company
+      FROM users u
+      LEFT JOIN employees e ON u.employeeId = e.id
+      ORDER BY u.createdAt DESC
+    `).all();
+    
+    const parsed = users.map((u: any) => ({
+      ...u,
+      isActive: Boolean(u.isActive),
+      isPending: !u.isActive && u.inviteToken !== null,
+      status: !u.isActive && u.inviteToken ? 'pending' : (u.isActive ? 'active' : 'inactive')
+    }));
+    
+    res.json(parsed);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Update user (role, status, link employee)
+app.patch('/api/users/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, isActive, employeeId } = req.body;
+    
+    const current = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
+    if (!current) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const stmt = db.prepare(`
+      UPDATE users SET role = ?, isActive = ?, employeeId = ? WHERE id = ?
+    `);
+    stmt.run(
+      role ?? current.role,
+      isActive !== undefined ? (isActive ? 1 : 0) : current.isActive,
+      employeeId !== undefined ? employeeId : current.employeeId,
+      id
+    );
+    
+    console.log(`User ${id} updated: role=${role}, isActive=${isActive}, employeeId=${employeeId}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// Delete user
+app.delete('/api/users/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    console.log(`User ${id} deleted`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// Resend invite
+app.post('/api/users/:id/resend-invite', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = db.prepare(`
+      SELECT u.*, e.name as employeeName 
+      FROM users u 
+      LEFT JOIN employees e ON u.employeeId = e.id 
+      WHERE u.id = ?
+    `).get(id) as any;
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (user.isActive) {
+      return res.status(400).json({ error: 'User already active' });
+    }
+    
+    const crypto = require('crypto');
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    
+    db.prepare('UPDATE users SET inviteToken = ?, inviteExpires = ? WHERE id = ?')
+      .run(inviteToken, inviteExpires, id);
+    
+    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invite/${inviteToken}`;
+    await sendInviteEmail(user.email, inviteLink, user.employeeName);
+    
+    console.log('Invite resent to:', user.email);
+    res.json({ success: true, inviteLink });
+  } catch (error) {
+    console.error('Resend invite error:', error);
+    res.status(500).json({ error: 'Failed to resend invite' });
+  }
+});
+
+
 // ============== INVITE SYSTEM ==============
 
 app.post('/api/auth/invite', async (req, res) => {
@@ -1021,7 +1129,7 @@ app.post('/api/auth/invite', async (req, res) => {
     `);
     const result = stmt.run(email, employeeId || null, role || 'employee', inviteToken, inviteExpires);
     
-    const inviteLink = `http://localhost:5173/invite/${inviteToken}`;
+    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invite/${inviteToken}`;
     
     console.log('Invite created for:', email);
     console.log('Invite link:', inviteLink);
