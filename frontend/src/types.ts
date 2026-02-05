@@ -47,6 +47,7 @@ export const ADMIN_NAVIGATION: NavigationItem[] = [
   { id: 'leave', label: 'Leave Requests', icon: 'CalendarOff' },
   { id: 'swaps', label: 'Shift Swaps', icon: 'ArrowLeftRight' },
   { id: 'overtime', label: 'Overtime', icon: 'Clock' },
+  { id: 'users', label: 'Users', icon: 'Users' },
   { id: 'settings', label: 'Settings', icon: 'Settings' }
 ];
 
