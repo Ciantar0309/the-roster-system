@@ -1,13 +1,16 @@
 ﻿from flask import Flask, request, jsonify
 from flask_cors import CORS
+import os
+
+app = Flask(__name__)
+CORS(app)
+
+# Import solver after app is created
 from roster_solver import (
     Employee, ShopAssignment, LeaveRequest, ShiftTemplate, DemandEntry,
     ShopConfig, SpecialShiftDemand, RosterSolver,
     build_templates_from_config, build_demands_from_config, load_shop_config
 )
-
-app = Flask(__name__)
-CORS(app)
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -106,7 +109,6 @@ def solve_roster():
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 3002))
     print(f"Starting RosterPro Solver API on port {port}...")
     app.run(host='0.0.0.0', port=port, debug=False)
