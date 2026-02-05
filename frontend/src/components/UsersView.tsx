@@ -5,6 +5,7 @@ import {
   AlertCircle, CheckCircle
 } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 interface User {
   id: number;
@@ -66,7 +67,7 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
   // Fetch users
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/auth/invites');
+      const response = await fetch(`${API_URL}/api/auth/invites`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
@@ -107,7 +108,7 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
     setInviteLink('');
     
     try {
-      const response = await fetch('http://localhost:3001/api/auth/invite', {
+      const response = await fetch(`${API_URL}/api/auth/invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -128,7 +129,7 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
         
         // Update employee email if linked
         if (inviteEmployeeId) {
-          await fetch(`http://localhost:3001/api/employees/${inviteEmployeeId}`, {
+          await fetch(`${API_URL}/api/employees/${inviteEmployeeId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: inviteEmail })
@@ -149,7 +150,7 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
     if (!confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      const response = await fetch(`http://localhost:3001/api/auth/invite/${userId}`, {
+      const response = await fetch(`${API_URL}/api/auth/invite/${userId}`, {
         method: 'DELETE'
       });
       
@@ -167,7 +168,7 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
   // Resend invite
   const handleResend = async (userId: number) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/auth/invite/${userId}/resend`, {
+      const response = await fetch(`${API_URL}/api/auth/invite/${userId}/resend`, {
         method: 'POST'
       });
       
@@ -202,7 +203,7 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
     setError('');
     
     try {
-      const response = await fetch(`http://localhost:3001/api/auth/user/${editingUser.id}`, {
+      const response = await fetch(`${API_URL}/api/auth/user/${editingUser.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -220,7 +221,7 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
         
         // Update employee email if linked
         if (editEmployeeId && editingUser.email) {
-          await fetch(`http://localhost:3001/api/employees/${editEmployeeId}`, {
+          await fetch(`${API_URL}/api/employees/${editEmployeeId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email: editingUser.email })
