@@ -8,7 +8,7 @@ import { sendInviteEmail, sendLeaveStatusEmail, sendSwapStatusEmail } from './em
 const JWT_SECRET = process.env.JWT_SECRET || 'rosterpro-secret-key-change-in-production';
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -419,7 +419,7 @@ app.post('/api/roster/solve', async (req, res) => {
     console.log('========================================\n');
     
     // Call Python solver
-    const response = await fetch('http://127.0.0.1:3002/api/roster/solve', {
+    const response = await fetch(`${process.env.SOLVER_URL || 'http://127.0.0.1:3002'}/api/roster/solve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
