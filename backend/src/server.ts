@@ -1151,6 +1151,39 @@ app.get('/api/auth/invite/:token', async (req, res) => {
     res.status(500).json({ error: 'Failed to verify invite' });
   }
 });
+// Alias for frontend compatibility
+app.get('/api/auth/verify-invite/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const result = await pool.query(`
+      SELECT u.*, e.name as "employeeName"
+      FROM users u
+      LEFT JOIN employees e ON u."employeeId" = e.id
+      WHERE u."inviteToken" = $1
+    `, [token]);
+    
+    const user = result.rows[0];
+    
+    if (!user) {
+      return res.status(404).json({ error: 'Invalid invite token' });
+    }
+    
+    if (new Date(user.inviteExpires) < new Date()) {
+      return res.status(400).json({ error: 'Invite has expired' });
+    }
+    
+    res.json({
+      email: user.email,
+      employeeName: user.employeeName,
+      role: user.role
+    });
+  } catch (error) {
+    console.error('Verify invite error:', error);
+    res.status(500).json({ error: 'Failed to verify invite' });
+  }
+});
+
 
 app.post('/api/auth/accept-invite', async (req, res) => {
   try {
