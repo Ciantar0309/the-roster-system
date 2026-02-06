@@ -123,9 +123,17 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
       const data = await response.json();
       
       if (response.ok) {
-        setInviteLink(data.inviteLink);
-        setSuccess(`Invite sent to ${inviteEmail}`);
-        fetchUsers();
+  setSuccess(`Invite sent to ${inviteEmail}!`);
+  fetchUsers();
+  setShowInviteModal(false);
+  
+  // Reset form
+  setInviteEmail('');
+  setInviteRole('employee');
+  setInviteEmployeeId(null);
+  setInviteCompany('Both');
+  setInviteShopIds([]);
+  setInviteLink('');
         
         // Update employee email if linked
         if (inviteEmployeeId) {

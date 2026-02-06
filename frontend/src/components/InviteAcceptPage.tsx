@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 interface InviteAcceptPageProps {
   token: string;
   onComplete: () => void;
@@ -20,10 +22,10 @@ export default function InviteAcceptPage({ token, onComplete }: InviteAcceptPage
   useEffect(() => {
     const verifyInvite = async () => {
       try {
-        const response = await fetch(`http://localhost:3001/api/auth/invite/${token}`);
+        const response = await fetch(`${API_URL}/api/auth/invite/${token}`);
         const data = await response.json();
         
-        if (response.ok && data.valid) {
+        if (response.ok && data.email) {
           setInviteData(data);
           setStatus('valid');
         } else {
@@ -56,10 +58,10 @@ export default function InviteAcceptPage({ token, onComplete }: InviteAcceptPage
     setIsSubmitting(true);
     
     try {
-      const response = await fetch(`http://localhost:3001/api/auth/invite/${token}/accept`, {
+      const response = await fetch(`${API_URL}/api/auth/accept-invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ token, password }),
       });
       
       const data = await response.json();
