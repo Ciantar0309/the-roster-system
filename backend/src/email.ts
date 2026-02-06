@@ -1,13 +1,17 @@
 import nodemailer from 'nodemailer';
 
-// Email configuration
+// Email configuration using environment variables
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: false,
   auth: {
-    user: 'rosterpro.system@gmail.com',  // Replace with your new Gmail
-    pass: 'czyk qwfd wega azrz'         // Replace with your 16-char app password
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
   }
 });
+
+const FROM_EMAIL = process.env.SMTP_FROM || `"RosterPro" <${process.env.SMTP_USER}>`;
 
 // Verify connection on startup
 transporter.verify((error, success) => {
@@ -21,7 +25,7 @@ transporter.verify((error, success) => {
 // Send invite email
 export async function sendInviteEmail(to: string, inviteLink: string, employeeName?: string) {
   const mailOptions = {
-    from: '"RosterPro" <YOUR_NEW_GMAIL@gmail.com>',
+    from: FROM_EMAIL,
     to,
     subject: 'You\'ve been invited to RosterPro',
     html: `
@@ -62,7 +66,7 @@ export async function sendLeaveStatusEmail(
   const isApproved = status === 'approved';
   
   const mailOptions = {
-    from: '"RosterPro" <YOUR_NEW_GMAIL@gmail.com>',
+    from: FROM_EMAIL,
     to,
     subject: `Leave Request ${isApproved ? 'Approved' : 'Rejected'} - RosterPro`,
     html: `
@@ -103,7 +107,7 @@ export async function sendSwapStatusEmail(
   const isApproved = status === 'approved';
   
   const mailOptions = {
-    from: '"RosterPro" <YOUR_NEW_GMAIL@gmail.com>',
+    from: FROM_EMAIL,
     to,
     subject: `Shift Swap ${isApproved ? 'Approved' : 'Rejected'} - RosterPro`,
     html: `
