@@ -34,7 +34,7 @@ import SwapsView from './components/SwapsView';
 
 // ============== API CONFIG ==============
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3001') + '/api';
 
 // ============== SAMPLE DATA ==============
 
@@ -1532,7 +1532,7 @@ function RosterView({ shops, employees, shifts, setShifts, leaveRequests }: Rost
         excludedEmployeeIds: [31]
       };
       
-      const response = await fetch('http://localhost:3001/api/roster/solve', {
+      const response = await fetch(`${API_BASE_URL}/roster/solve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(solverPayload)
