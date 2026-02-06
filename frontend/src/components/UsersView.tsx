@@ -67,7 +67,7 @@ export default function UsersView({ employees, shops }: UsersViewProps) {
   // Fetch users
   const fetchUsers = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/auth/invites`);
+      const response = await fetch(`${API_URL}/api/users`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
