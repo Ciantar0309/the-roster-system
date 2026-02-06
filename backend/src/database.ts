@@ -1,10 +1,19 @@
-// backend/src/database.ts
-import pg from 'pg';
+import { Pool } from 'pg';
 
-const pool = new pg.Pool({
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+  max: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 10000,
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
 });
+
+pool.on('error', (err) => {
+  console.error('Unexpected pool error:', err);
+});
+
 
 // Simple wrapper that mimics better-sqlite3 sync API but actually runs async
 // This is a hack but keeps server.ts changes minimal
