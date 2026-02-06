@@ -1,11 +1,17 @@
 import express from 'express';
 import cors from 'cors';
-import db, { initializeDatabase } from './database';
+import { initializeDatabase } from './database';
+import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { sendInviteEmail, sendLeaveStatusEmail, sendSwapStatusEmail } from './email';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'rosterpro-secret-key-change-in-production';
+
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -14,7 +20,11 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
 // Initialize database on startup
-initializeDatabase();
+initializeDatabase().then(() => {
+  console.log('Database ready');
+}).catch(err => {
+  console.error('Database init failed:', err);
+});
 
 // ============== HEALTH CHECK ==============
 app.get('/api/health', (req, res) => {
@@ -23,11 +33,10 @@ app.get('/api/health', (req, res) => {
 
 // ============== SHOPS ==============
 
-// Get all shops
-app.get('/api/shops', (req, res) => {
+app.get('/api/shops', async (req, res) => {
   try {
-    const shops = db.prepare('SELECT * FROM shops').all();
-    const parsed = shops.map((shop: any) => ({
+    const result = await pool.query('SELECT * FROM shops');
+    const parsed = result.rows.map((shop: any) => ({
       ...shop,
       isActive: Boolean(shop.isActive),
       requirements: shop.requirements ? JSON.parse(shop.requirements) : [],
@@ -52,24 +61,22 @@ app.get('/api/shops', (req, res) => {
   }
 });
 
-// Create shop
-app.post('/api/shops', (req, res) => {
+app.post('/api/shops', async (req, res) => {
   try {
     const shop = req.body;
     
-    const existing = db.prepare('SELECT id FROM shops WHERE name = ?').get(shop.name) as any;
-    if (existing) {
-      console.log(`Shop "${shop.name}" already exists, skipping`);
-      return res.json({ success: true, id: existing.id, existed: true });
+    const existing = await pool.query('SELECT id FROM shops WHERE name = $1', [shop.name]);
+    if (existing.rows.length > 0) {
+      return res.json({ success: true, id: existing.rows[0].id, existed: true });
     }
     
-    const stmt = db.prepare(`
-      INSERT INTO shops (name, company, isActive, address, phone, openTime, closeTime, 
-        requirements, specialRequests, fixedDaysOff, specialDayRules, assignedEmployees, rules,
-        minStaffAtOpen, minStaffMidday, minStaffAtClose, canBeSolo, specialShifts, trimming, sunday, staffingConfig)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
+    const result = await pool.query(`
+      INSERT INTO shops (name, company, "isActive", address, phone, "openTime", "closeTime", 
+        requirements, "specialRequests", "fixedDaysOff", "specialDayRules", "assignedEmployees", rules,
+        "minStaffAtOpen", "minStaffMidday", "minStaffAtClose", "canBeSolo", "specialShifts", trimming, sunday, "staffingConfig")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+      RETURNING id
+    `, [
       shop.name,
       shop.company,
       shop.isActive ? 1 : 0,
@@ -91,24 +98,24 @@ app.post('/api/shops', (req, res) => {
       JSON.stringify(shop.trimming || null),
       JSON.stringify(shop.sunday || null),
       JSON.stringify(shop.staffingConfig || null)
-    );
-    res.json({ success: true, id: result.lastInsertRowid, shop });
+    ]);
+    res.json({ success: true, id: result.rows[0].id, shop });
   } catch (error) {
     console.error('Error creating shop:', error);
     res.status(500).json({ error: 'Failed to create shop' });
   }
 });
 
-// Update shop (PATCH)
-app.patch('/api/shops/:id', (req, res) => {
+app.patch('/api/shops/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
     
-    const currentShop = db.prepare('SELECT * FROM shops WHERE id = ?').get(id) as any;
-    if (!currentShop) {
+    const current = await pool.query('SELECT * FROM shops WHERE id = $1', [id]);
+    if (current.rows.length === 0) {
       return res.status(404).json({ error: 'Shop not found' });
     }
+    const currentShop = current.rows[0];
     
     const shop = {
       name: updates.name ?? currentShop.name,
@@ -134,16 +141,15 @@ app.patch('/api/shops/:id', (req, res) => {
       staffingConfig: updates.staffingConfig ?? (currentShop.staffingConfig ? JSON.parse(currentShop.staffingConfig) : null)
     };
     
-    const stmt = db.prepare(`
+    await pool.query(`
       UPDATE shops SET 
-        name = ?, company = ?, isActive = ?, address = ?, phone = ?, 
-        openTime = ?, closeTime = ?, requirements = ?, specialRequests = ?, 
-        fixedDaysOff = ?, specialDayRules = ?, assignedEmployees = ?, rules = ?,
-        minStaffAtOpen = ?, minStaffMidday = ?, minStaffAtClose = ?, canBeSolo = ?,
-        specialShifts = ?, trimming = ?, sunday = ?, staffingConfig = ?
-      WHERE id = ?
-    `);
-    stmt.run(
+        name = $1, company = $2, "isActive" = $3, address = $4, phone = $5, 
+        "openTime" = $6, "closeTime" = $7, requirements = $8, "specialRequests" = $9, 
+        "fixedDaysOff" = $10, "specialDayRules" = $11, "assignedEmployees" = $12, rules = $13,
+        "minStaffAtOpen" = $14, "minStaffMidday" = $15, "minStaffAtClose" = $16, "canBeSolo" = $17,
+        "specialShifts" = $18, trimming = $19, sunday = $20, "staffingConfig" = $21
+      WHERE id = $22
+    `, [
       shop.name,
       shop.company,
       shop.isActive ? 1 : 0,
@@ -166,9 +172,8 @@ app.patch('/api/shops/:id', (req, res) => {
       JSON.stringify(shop.sunday || null),
       JSON.stringify(shop.staffingConfig || null),
       id
-    );
+    ]);
     
-    console.log(`Shop ${id} updated:`, shop.name);
     res.json({ success: true, shop });
   } catch (error) {
     console.error('Error updating shop:', error);
@@ -176,21 +181,20 @@ app.patch('/api/shops/:id', (req, res) => {
   }
 });
 
-// Update shop (PUT)
-app.put('/api/shops/:id', (req, res) => {
+app.put('/api/shops/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const shop = req.body;
-    const stmt = db.prepare(`
+    
+    await pool.query(`
       UPDATE shops SET 
-        name = ?, company = ?, isActive = ?, address = ?, phone = ?, 
-        openTime = ?, closeTime = ?, requirements = ?, specialRequests = ?, 
-        fixedDaysOff = ?, specialDayRules = ?, assignedEmployees = ?, rules = ?,
-        minStaffAtOpen = ?, minStaffMidday = ?, minStaffAtClose = ?, canBeSolo = ?,
-        specialShifts = ?, trimming = ?, sunday = ?, staffingConfig = ?
-      WHERE id = ?
-    `);
-    stmt.run(
+        name = $1, company = $2, "isActive" = $3, address = $4, phone = $5, 
+        "openTime" = $6, "closeTime" = $7, requirements = $8, "specialRequests" = $9, 
+        "fixedDaysOff" = $10, "specialDayRules" = $11, "assignedEmployees" = $12, rules = $13,
+        "minStaffAtOpen" = $14, "minStaffMidday" = $15, "minStaffAtClose" = $16, "canBeSolo" = $17,
+        "specialShifts" = $18, trimming = $19, sunday = $20, "staffingConfig" = $21
+      WHERE id = $22
+    `, [
       shop.name,
       shop.company,
       shop.isActive ? 1 : 0,
@@ -213,7 +217,7 @@ app.put('/api/shops/:id', (req, res) => {
       JSON.stringify(shop.sunday || null),
       JSON.stringify(shop.staffingConfig || null),
       id
-    );
+    ]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating shop:', error);
@@ -221,11 +225,10 @@ app.put('/api/shops/:id', (req, res) => {
   }
 });
 
-// Delete shop
-app.delete('/api/shops/:id', (req, res) => {
+app.delete('/api/shops/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM shops WHERE id = ?').run(id);
+    await pool.query('DELETE FROM shops WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting shop:', error);
@@ -235,11 +238,10 @@ app.delete('/api/shops/:id', (req, res) => {
 
 // ============== EMPLOYEES ==============
 
-// Get all employees
-app.get('/api/employees', (req, res) => {
+app.get('/api/employees', async (req, res) => {
   try {
-    const employees = db.prepare('SELECT * FROM employees').all();
-    const parsed = employees.map((emp: any) => ({
+    const result = await pool.query('SELECT * FROM employees');
+    const parsed = result.rows.map((emp: any) => ({
       ...emp,
       excludeFromRoster: Boolean(emp.excludeFromRoster),
       hasSystemAccess: Boolean(emp.hasSystemAccess),
@@ -253,16 +255,14 @@ app.get('/api/employees', (req, res) => {
   }
 });
 
-// Create employee
-app.post('/api/employees', (req, res) => {
+app.post('/api/employees', async (req, res) => {
   try {
     const emp = req.body;
-    const stmt = db.prepare(`
-      INSERT OR REPLACE INTO employees (id, name, email, phone, company, employmentType, role, weeklyHours, payScaleId, allowanceIds, excludeFromRoster, hasSystemAccess, systemRole, primaryShopId, secondaryShopIds, idNumber, taxNumber, ssnNumber, tcnNumber, tcnExpiry, iban)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
-      emp.id,
+    const result = await pool.query(`
+      INSERT INTO employees (name, email, phone, company, "employmentType", role, "weeklyHours", "payScaleId", "allowanceIds", "excludeFromRoster", "hasSystemAccess", "systemRole", "primaryShopId", "secondaryShopIds", "idNumber", "taxNumber", "ssnNumber", "tcnNumber", "tcnExpiry", iban)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+      RETURNING id
+    `, [
       emp.name,
       emp.email || null,
       emp.phone || null,
@@ -283,29 +283,28 @@ app.post('/api/employees', (req, res) => {
       emp.tcnNumber || null,
       emp.tcnExpiry || null,
       emp.iban || null
-    );
-    res.json({ success: true, employee: emp });
+    ]);
+    res.json({ success: true, employee: { ...emp, id: result.rows[0].id } });
   } catch (error) {
     console.error('Error creating employee:', error);
     res.status(500).json({ error: 'Failed to create employee' });
   }
 });
 
-// Update employee
-app.patch('/api/employees/:id', (req, res) => {
+app.patch('/api/employees/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const emp = req.body;
-    const stmt = db.prepare(`
+    
+    await pool.query(`
       UPDATE employees SET 
-        name = ?, email = ?, phone = ?, company = ?, employmentType = ?, 
-        role = ?, weeklyHours = ?, payScaleId = ?, allowanceIds = ?,
-        excludeFromRoster = ?, hasSystemAccess = ?, systemRole = ?,
-        primaryShopId = ?, secondaryShopIds = ?, idNumber = ?, taxNumber = ?,
-        ssnNumber = ?, tcnNumber = ?, tcnExpiry = ?, iban = ?
-      WHERE id = ?
-    `);
-    stmt.run(
+        name = $1, email = $2, phone = $3, company = $4, "employmentType" = $5, 
+        role = $6, "weeklyHours" = $7, "payScaleId" = $8, "allowanceIds" = $9,
+        "excludeFromRoster" = $10, "hasSystemAccess" = $11, "systemRole" = $12,
+        "primaryShopId" = $13, "secondaryShopIds" = $14, "idNumber" = $15, "taxNumber" = $16,
+        "ssnNumber" = $17, "tcnNumber" = $18, "tcnExpiry" = $19, iban = $20
+      WHERE id = $21
+    `, [
       emp.name,
       emp.email || null,
       emp.phone || null,
@@ -327,7 +326,7 @@ app.patch('/api/employees/:id', (req, res) => {
       emp.tcnExpiry || null,
       emp.iban || null,
       id
-    );
+    ]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating employee:', error);
@@ -335,11 +334,10 @@ app.patch('/api/employees/:id', (req, res) => {
   }
 });
 
-// Delete employee
-app.delete('/api/employees/:id', (req, res) => {
+app.delete('/api/employees/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM employees WHERE id = ?').run(id);
+    await pool.query('DELETE FROM employees WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting employee:', error);
@@ -347,7 +345,7 @@ app.delete('/api/employees/:id', (req, res) => {
   }
 });
 
-// ============== ROSTER SOLVE (Proxy to Python Solver) ==============
+// ============== ROSTER SOLVE ==============
 
 app.post('/api/roster/solve', async (req, res) => {
   try {
@@ -355,24 +353,12 @@ app.post('/api/roster/solve', async (req, res) => {
     console.log('ROSTER SOLVE REQUEST');
     console.log('========================================');
     
-    // Get data from database
-    const shops = db.prepare('SELECT * FROM shops WHERE isActive = 1').all();
-    const employees = db.prepare('SELECT * FROM employees').all();
-    const leaveRequests = db.prepare("SELECT * FROM leave_requests WHERE status = 'approved'").all();
+    const shopsResult = await pool.query('SELECT * FROM shops WHERE "isActive" = 1');
+    const employeesResult = await pool.query('SELECT * FROM employees');
+    const leaveResult = await pool.query("SELECT * FROM leave_requests WHERE status = 'approved'");
     
-    // Parse JSON fields for shops - CRITICAL: staffingConfig must be parsed
-    const parsedShops = shops.map((shop: any) => {
+    const parsedShops = shopsResult.rows.map((shop: any) => {
       const staffingConfig = shop.staffingConfig ? JSON.parse(shop.staffingConfig) : null;
-      
-      // DEBUG: Log Hamrun's staffingConfig
-      if (shop.id === 1) {
-        console.log('\n=== HAMRUN STAFFING CONFIG ===');
-        console.log('Has staffingConfig:', !!staffingConfig);
-        console.log('coverageMode:', staffingConfig?.coverageMode);
-        console.log('weeklySchedule length:', staffingConfig?.weeklySchedule?.length);
-        console.log('Monday config:', staffingConfig?.weeklySchedule?.[0]);
-      }
-      
       return {
         id: shop.id,
         name: shop.name,
@@ -381,7 +367,7 @@ app.post('/api/roster/solve', async (req, res) => {
         closeTime: shop.closeTime,
         isActive: Boolean(shop.isActive),
         canBeSolo: Boolean(shop.canBeSolo),
-        staffingConfig: staffingConfig,  // OBJECT, not string!
+        staffingConfig: staffingConfig,
         requirements: shop.requirements ? JSON.parse(shop.requirements) : [],
         specialRequests: shop.specialRequests ? JSON.parse(shop.specialRequests) : [],
         fixedDaysOff: shop.fixedDaysOff ? JSON.parse(shop.fixedDaysOff) : [],
@@ -394,8 +380,7 @@ app.post('/api/roster/solve', async (req, res) => {
       };
     });
     
-    // Parse JSON fields for employees
-    const parsedEmployees = employees.map((emp: any) => ({
+    const parsedEmployees = employeesResult.rows.map((emp: any) => ({
       ...emp,
       excludeFromRoster: Boolean(emp.excludeFromRoster),
       allowanceIds: emp.allowanceIds ? JSON.parse(emp.allowanceIds) : [],
@@ -403,22 +388,19 @@ app.post('/api/roster/solve', async (req, res) => {
       fixedDaysOff: emp.fixedDaysOff ? JSON.parse(emp.fixedDaysOff) : []
     }));
     
-    // Build payload for Python solver
     const payload = {
       weekStart: req.body.weekStart || new Date().toISOString().split('T')[0],
       employees: parsedEmployees,
       shops: parsedShops,
-      leaveRequests: leaveRequests,
+      leaveRequests: leaveResult.rows,
       excludedEmployeeIds: req.body.excludedEmployeeIds || [],
       amOnlyEmployees: req.body.amOnlyEmployees || [],
       fixedDaysOff: req.body.fixedDaysOff || {},
       previousWeekSundayShifts: req.body.previousWeekSundayShifts || []
     };
     
-    console.log(`\nSending to Python solver: ${parsedShops.length} shops, ${parsedEmployees.length} employees`);
-    console.log('========================================\n');
+    console.log(`Sending to Python solver: ${parsedShops.length} shops, ${parsedEmployees.length} employees`);
     
-    // Call Python solver
     const response = await fetch(`${process.env.SOLVER_URL || 'http://127.0.0.1:3002'}/api/roster/solve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -443,43 +425,35 @@ app.post('/api/roster/solve', async (req, res) => {
 // ============== ROSTER/SHIFTS ==============
 
 app.get('/api/roster/generate', (req, res) => {
-  const { weekStart, shopId } = req.query;
-  console.log(`Generating roster for week: ${weekStart}, shop: ${shopId || 'all'}`);
-  res.json({ shifts: [], message: 'Roster generation endpoint - use /api/roster/solve instead' });
+  res.json({ shifts: [], message: 'Use /api/roster/solve instead' });
 });
 
-// Save roster
-app.post('/api/roster/save', (req, res) => {
+app.post('/api/roster/save', async (req, res) => {
   try {
     const { weekStart, shifts } = req.body;
     
-    db.prepare('DELETE FROM shifts WHERE weekStart = ?').run(weekStart);
+    await pool.query('DELETE FROM shifts WHERE "weekStart" = $1', [weekStart]);
     
-    const stmt = db.prepare(`
-      INSERT INTO shifts (id, date, shopId, shopName, employeeId, employeeName, startTime, endTime, hours, shiftType, company, weekStart)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    for (const shift of shifts) {
+      await pool.query(`
+        INSERT INTO shifts (id, date, "shopId", "shopName", "employeeId", "employeeName", "startTime", "endTime", hours, "shiftType", company, "weekStart")
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `, [
+        shift.id,
+        shift.date,
+        shift.shopId,
+        shift.shopName || '',
+        shift.employeeId,
+        shift.employeeName || '',
+        shift.startTime,
+        shift.endTime,
+        shift.hours || 0,
+        shift.shiftType || '',
+        shift.company || '',
+        weekStart
+      ]);
+    }
     
-    const insertMany = db.transaction((shifts: any[]) => {
-      for (const shift of shifts) {
-        stmt.run(
-          shift.id,
-          shift.date,
-          shift.shopId,
-          shift.shopName || '',
-          shift.employeeId,
-          shift.employeeName || '',
-          shift.startTime,
-          shift.endTime,
-          shift.hours || 0,
-          shift.shiftType || '',
-          shift.company || '',
-          weekStart
-        );
-      }
-    });
-    
-    insertMany(shifts);
     console.log(`Saved ${shifts.length} shifts for week ${weekStart}`);
     res.json({ success: true, count: shifts.length });
   } catch (error) {
@@ -488,55 +462,51 @@ app.post('/api/roster/save', (req, res) => {
   }
 });
 
-// Load roster
-app.get('/api/roster/load', (req, res) => {
+app.get('/api/roster/load', async (req, res) => {
   try {
     const { weekStart } = req.query;
-    const shifts = db.prepare('SELECT * FROM shifts WHERE weekStart = ?').all(weekStart);
-    console.log(`Loaded ${shifts.length} shifts for week ${weekStart}`);
-    res.json({ shifts });
+    const result = await pool.query('SELECT * FROM shifts WHERE "weekStart" = $1', [weekStart]);
+    console.log(`Loaded ${result.rows.length} shifts for week ${weekStart}`);
+    res.json({ shifts: result.rows });
   } catch (error) {
     console.error('Error loading roster:', error);
     res.status(500).json({ error: 'Failed to load roster' });
   }
 });
 
-// Delete roster for week
-app.delete('/api/roster/:weekStart', (req, res) => {
+app.delete('/api/roster/:weekStart', async (req, res) => {
   try {
     const { weekStart } = req.params;
-    const result = db.prepare('DELETE FROM shifts WHERE weekStart = ?').run(weekStart);
-    console.log(`Deleted ${result.changes} shifts for week ${weekStart}`);
-    res.json({ success: true, deleted: result.changes });
+    const result = await pool.query('DELETE FROM shifts WHERE "weekStart" = $1', [weekStart]);
+    console.log(`Deleted shifts for week ${weekStart}`);
+    res.json({ success: true, deleted: result.rowCount });
   } catch (error) {
     console.error('Error deleting roster:', error);
     res.status(500).json({ error: 'Failed to delete roster' });
   }
 });
 
-// List all saved rosters
-app.get('/api/roster/list', (req, res) => {
+app.get('/api/roster/list', async (req, res) => {
   try {
-    const weeks = db.prepare('SELECT DISTINCT weekStart, COUNT(*) as shiftCount FROM shifts GROUP BY weekStart ORDER BY weekStart DESC').all();
-    res.json(weeks);
+    const result = await pool.query('SELECT DISTINCT "weekStart", COUNT(*) as "shiftCount" FROM shifts GROUP BY "weekStart" ORDER BY "weekStart" DESC');
+    res.json(result.rows);
   } catch (error) {
     console.error('Error listing rosters:', error);
     res.status(500).json({ error: 'Failed to list rosters' });
   }
 });
 
-// Update single shift
-app.patch('/api/roster/shift/:id', (req, res) => {
+app.patch('/api/roster/shift/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const shift = req.body;
-    const stmt = db.prepare(`
+    
+    await pool.query(`
       UPDATE shifts SET 
-        date = ?, shopId = ?, shopName = ?, employeeId = ?, employeeName = ?,
-        startTime = ?, endTime = ?, hours = ?, shiftType = ?, company = ?
-      WHERE id = ?
-    `);
-    stmt.run(
+        date = $1, "shopId" = $2, "shopName" = $3, "employeeId" = $4, "employeeName" = $5,
+        "startTime" = $6, "endTime" = $7, hours = $8, "shiftType" = $9, company = $10
+      WHERE id = $11
+    `, [
       shift.date,
       shift.shopId,
       shift.shopName || '',
@@ -548,7 +518,7 @@ app.patch('/api/roster/shift/:id', (req, res) => {
       shift.shiftType || '',
       shift.company || '',
       id
-    );
+    ]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating shift:', error);
@@ -556,15 +526,14 @@ app.patch('/api/roster/shift/:id', (req, res) => {
   }
 });
 
-// Add single shift
-app.post('/api/roster/shift', (req, res) => {
+app.post('/api/roster/shift', async (req, res) => {
   try {
     const shift = req.body;
-    const stmt = db.prepare(`
-      INSERT INTO shifts (id, date, shopId, shopName, employeeId, employeeName, startTime, endTime, hours, shiftType, company, weekStart)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
+    
+    await pool.query(`
+      INSERT INTO shifts (id, date, "shopId", "shopName", "employeeId", "employeeName", "startTime", "endTime", hours, "shiftType", company, "weekStart")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `, [
       shift.id,
       shift.date,
       shift.shopId,
@@ -577,7 +546,7 @@ app.post('/api/roster/shift', (req, res) => {
       shift.shiftType || '',
       shift.company || '',
       shift.weekStart
-    );
+    ]);
     res.json({ success: true, shift });
   } catch (error) {
     console.error('Error adding shift:', error);
@@ -585,11 +554,10 @@ app.post('/api/roster/shift', (req, res) => {
   }
 });
 
-// Delete single shift
-app.delete('/api/roster/shift/:id', (req, res) => {
+app.delete('/api/roster/shift/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM shifts WHERE id = ?').run(id);
+    await pool.query('DELETE FROM shifts WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting shift:', error);
@@ -599,24 +567,24 @@ app.delete('/api/roster/shift/:id', (req, res) => {
 
 // ============== LEAVE REQUESTS ==============
 
-app.get('/api/leave', (req, res) => {
+app.get('/api/leave', async (req, res) => {
   try {
-    const requests = db.prepare('SELECT * FROM leave_requests ORDER BY submittedAt DESC').all();
-    res.json(requests);
+    const result = await pool.query('SELECT * FROM leave_requests ORDER BY "submittedAt" DESC');
+    res.json(result.rows);
   } catch (error) {
     console.error('Error fetching leave requests:', error);
     res.status(500).json({ error: 'Failed to fetch leave requests' });
   }
 });
 
-app.post('/api/leave', (req, res) => {
+app.post('/api/leave', async (req, res) => {
   try {
     const request = req.body;
-    const stmt = db.prepare(`
-      INSERT INTO leave_requests (id, employeeId, type, startDate, endDate, reason, status, submittedAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
+    
+    await pool.query(`
+      INSERT INTO leave_requests (id, "employeeId", type, "startDate", "endDate", reason, status, "submittedAt")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
       request.id,
       request.employeeId,
       request.type,
@@ -625,7 +593,7 @@ app.post('/api/leave', (req, res) => {
       request.reason || null,
       request.status || 'pending',
       request.submittedAt || new Date().toISOString()
-    );
+    ]);
     res.json({ success: true, request });
   } catch (error) {
     console.error('Error creating leave request:', error);
@@ -637,19 +605,20 @@ app.patch('/api/leave/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reviewedBy } = req.body;
-    const stmt = db.prepare(`
-      UPDATE leave_requests SET status = ?, reviewedBy = ?, reviewedAt = ? WHERE id = ?
-    `);
-    stmt.run(status, reviewedBy || null, new Date().toISOString(), id);
+    
+    await pool.query(`
+      UPDATE leave_requests SET status = $1, "reviewedBy" = $2, "reviewedAt" = $3 WHERE id = $4
+    `, [status, reviewedBy || null, new Date().toISOString(), id]);
     
     if (status === 'approved' || status === 'rejected') {
-      const leave = db.prepare(`
-        SELECT lr.*, e.name as employeeName, e.email as employeeEmail
+      const leaveResult = await pool.query(`
+        SELECT lr.*, e.name as "employeeName", e.email as "employeeEmail"
         FROM leave_requests lr
-        JOIN employees e ON lr.employeeId = e.id
-        WHERE lr.id = ?
-      `).get(id) as any;
+        JOIN employees e ON lr."employeeId" = e.id
+        WHERE lr.id = $1
+      `, [id]);
 
+      const leave = leaveResult.rows[0];
       if (leave?.employeeEmail) {
         await sendLeaveStatusEmail(
           leave.employeeEmail,
@@ -669,10 +638,10 @@ app.patch('/api/leave/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/leave/:id', (req, res) => {
+app.delete('/api/leave/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM leave_requests WHERE id = ?').run(id);
+    await pool.query('DELETE FROM leave_requests WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting leave request:', error);
@@ -682,24 +651,24 @@ app.delete('/api/leave/:id', (req, res) => {
 
 // ============== SWAP REQUESTS ==============
 
-app.get('/api/swaps', (req, res) => {
+app.get('/api/swaps', async (req, res) => {
   try {
-    const requests = db.prepare('SELECT * FROM swap_requests ORDER BY createdAt DESC').all();
-    res.json(requests);
+    const result = await pool.query('SELECT * FROM swap_requests ORDER BY "createdAt" DESC');
+    res.json(result.rows);
   } catch (error) {
     console.error('Error fetching swap requests:', error);
     res.status(500).json({ error: 'Failed to fetch swap requests' });
   }
 });
 
-app.post('/api/swaps', (req, res) => {
+app.post('/api/swaps', async (req, res) => {
   try {
     const request = req.body;
-    const stmt = db.prepare(`
-      INSERT INTO swap_requests (id, requesterId, requesterShiftId, targetEmployeeId, targetShiftId, status, createdAt)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
+    
+    await pool.query(`
+      INSERT INTO swap_requests (id, "requesterId", "requesterShiftId", "targetEmployeeId", "targetShiftId", status, "createdAt")
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [
       request.id,
       request.requesterId,
       request.requesterShiftId || null,
@@ -707,7 +676,7 @@ app.post('/api/swaps', (req, res) => {
       request.targetShiftId || null,
       request.status || 'pending',
       request.createdAt || new Date().toISOString()
-    );
+    ]);
     res.json({ success: true, request });
   } catch (error) {
     console.error('Error creating swap request:', error);
@@ -719,22 +688,23 @@ app.patch('/api/swaps/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { status, reviewedBy } = req.body;
-    const stmt = db.prepare(`
-      UPDATE swap_requests SET status = ?, reviewedBy = ?, reviewedAt = ? WHERE id = ?
-    `);
-    stmt.run(status, reviewedBy || null, new Date().toISOString(), id);
+    
+    await pool.query(`
+      UPDATE swap_requests SET status = $1, "reviewedBy" = $2, "reviewedAt" = $3 WHERE id = $4
+    `, [status, reviewedBy || null, new Date().toISOString(), id]);
     
     if (status === 'approved' || status === 'rejected') {
-      const swap = db.prepare(`
+      const swapResult = await pool.query(`
         SELECT sr.*, 
-          e1.name as requesterName, e1.email as requesterEmail,
-          e2.name as targetName
+          e1.name as "requesterName", e1.email as "requesterEmail",
+          e2.name as "targetName"
         FROM swap_requests sr
-        JOIN employees e1 ON sr.requesterId = e1.id
-        LEFT JOIN employees e2 ON sr.targetEmployeeId = e2.id
-        WHERE sr.id = ?
-      `).get(id) as any;
+        JOIN employees e1 ON sr."requesterId" = e1.id
+        LEFT JOIN employees e2 ON sr."targetEmployeeId" = e2.id
+        WHERE sr.id = $1
+      `, [id]);
 
+      const swap = swapResult.rows[0];
       if (swap?.requesterEmail) {
         await sendSwapStatusEmail(
           swap.requesterEmail,
@@ -755,10 +725,10 @@ app.patch('/api/swaps/:id', async (req, res) => {
 
 // ============== PROFILE UPDATES ==============
 
-app.get('/api/profile-updates', (req, res) => {
+app.get('/api/profile-updates', async (req, res) => {
   try {
-    const updates = db.prepare('SELECT * FROM profile_updates ORDER BY createdAt DESC').all();
-    const parsed = updates.map((u: any) => ({
+    const result = await pool.query('SELECT * FROM profile_updates ORDER BY "createdAt" DESC');
+    const parsed = result.rows.map((u: any) => ({
       ...u,
       changes: u.changes ? JSON.parse(u.changes) : {}
     }));
@@ -769,21 +739,21 @@ app.get('/api/profile-updates', (req, res) => {
   }
 });
 
-app.post('/api/profile-updates', (req, res) => {
+app.post('/api/profile-updates', async (req, res) => {
   try {
     const notification = req.body;
-    const stmt = db.prepare(`
-      INSERT INTO profile_updates (id, employeeId, employeeName, changes, createdAt, status)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(
+    
+    await pool.query(`
+      INSERT INTO profile_updates (id, "employeeId", "employeeName", changes, "createdAt", status)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `, [
       notification.id,
       notification.employeeId,
       notification.employeeName,
       JSON.stringify(notification.changes || {}),
       notification.createdAt || new Date().toISOString(),
       notification.status || 'pending'
-    );
+    ]);
     res.json({ success: true, notification });
   } catch (error) {
     console.error('Error creating profile update:', error);
@@ -791,11 +761,11 @@ app.post('/api/profile-updates', (req, res) => {
   }
 });
 
-app.patch('/api/profile-updates/:id', (req, res) => {
+app.patch('/api/profile-updates/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
-    db.prepare('UPDATE profile_updates SET status = ? WHERE id = ?').run(status, id);
+    await pool.query('UPDATE profile_updates SET status = $1 WHERE id = $2', [status, id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating profile update:', error);
@@ -805,24 +775,24 @@ app.patch('/api/profile-updates/:id', (req, res) => {
 
 // ============== PAY SCALES ==============
 
-app.get('/api/payscales', (req, res) => {
+app.get('/api/payscales', async (req, res) => {
   try {
-    const scales = db.prepare('SELECT * FROM pay_scales').all();
-    res.json(scales);
+    const result = await pool.query('SELECT * FROM pay_scales');
+    res.json(result.rows);
   } catch (error) {
     console.error('Error fetching pay scales:', error);
     res.status(500).json({ error: 'Failed to fetch pay scales' });
   }
 });
 
-app.post('/api/payscales', (req, res) => {
+app.post('/api/payscales', async (req, res) => {
   try {
     const scale = req.body;
-    const stmt = db.prepare(`
-      INSERT INTO pay_scales (id, name, hourlyRate, overtimeMultiplier, company)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    stmt.run(scale.id, scale.name, scale.hourlyRate, scale.overtimeMultiplier || 1.5, scale.company || null);
+    
+    await pool.query(`
+      INSERT INTO pay_scales (id, name, "hourlyRate", "overtimeMultiplier", company)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [scale.id, scale.name, scale.hourlyRate, scale.overtimeMultiplier || 1.5, scale.company || null]);
     res.json({ success: true, scale });
   } catch (error) {
     console.error('Error creating pay scale:', error);
@@ -830,14 +800,14 @@ app.post('/api/payscales', (req, res) => {
   }
 });
 
-app.patch('/api/payscales/:id', (req, res) => {
+app.patch('/api/payscales/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const scale = req.body;
-    const stmt = db.prepare(`
-      UPDATE pay_scales SET name = ?, hourlyRate = ?, overtimeMultiplier = ?, company = ? WHERE id = ?
-    `);
-    stmt.run(scale.name, scale.hourlyRate, scale.overtimeMultiplier || 1.5, scale.company || null, id);
+    
+    await pool.query(`
+      UPDATE pay_scales SET name = $1, "hourlyRate" = $2, "overtimeMultiplier" = $3, company = $4 WHERE id = $5
+    `, [scale.name, scale.hourlyRate, scale.overtimeMultiplier || 1.5, scale.company || null, id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating pay scale:', error);
@@ -845,14 +815,114 @@ app.patch('/api/payscales/:id', (req, res) => {
   }
 });
 
-app.delete('/api/payscales/:id', (req, res) => {
+app.delete('/api/payscales/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    db.prepare('DELETE FROM pay_scales WHERE id = ?').run(id);
+    await pool.query('DELETE FROM pay_scales WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting pay scale:', error);
     res.status(500).json({ error: 'Failed to delete pay scale' });
+  }
+});
+
+// ============== USERS MANAGEMENT ==============
+
+app.get('/api/users', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT u.id, u.email, u.role, u."employeeId", u."isActive", u."lastLogin", u."createdAt",
+             u."inviteToken", u."inviteExpires",
+             e.name as "employeeName", e.company
+      FROM users u
+      LEFT JOIN employees e ON u."employeeId" = e.id
+      ORDER BY u."createdAt" DESC
+    `);
+    
+    const parsed = result.rows.map((u: any) => ({
+      ...u,
+      isActive: Boolean(u.isActive),
+      isPending: !u.isActive && u.inviteToken !== null,
+      status: !u.isActive && u.inviteToken ? 'pending' : (u.isActive ? 'active' : 'inactive')
+    }));
+    
+    res.json(parsed);
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+app.patch('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, isActive, employeeId } = req.body;
+    
+    const current = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (current.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const currentUser = current.rows[0];
+    
+    await pool.query(`
+      UPDATE users SET role = $1, "isActive" = $2, "employeeId" = $3 WHERE id = $4
+    `, [
+      role ?? currentUser.role,
+      isActive !== undefined ? (isActive ? 1 : 0) : currentUser.isActive,
+      employeeId !== undefined ? employeeId : currentUser.employeeId,
+      id
+    ]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+app.post('/api/users/:id/resend-invite', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userResult = await pool.query(`
+      SELECT u.*, e.name as "employeeName" 
+      FROM users u 
+      LEFT JOIN employees e ON u."employeeId" = e.id 
+      WHERE u.id = $1
+    `, [id]);
+    
+    const user = userResult.rows[0];
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (user.isActive) {
+      return res.status(400).json({ error: 'User already active' });
+    }
+    
+    const crypto = require('crypto');
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    
+    await pool.query('UPDATE users SET "inviteToken" = $1, "inviteExpires" = $2 WHERE id = $3', [inviteToken, inviteExpires, id]);
+    
+    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invite/${inviteToken}`;
+    await sendInviteEmail(user.email, inviteLink, user.employeeName);
+    
+    res.json({ success: true, inviteLink });
+  } catch (error) {
+    console.error('Resend invite error:', error);
+    res.status(500).json({ error: 'Failed to resend invite' });
   }
 });
 
@@ -862,21 +932,21 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, password, employeeId, role } = req.body;
     
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (existing) {
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'User already exists' });
     }
     
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    const stmt = db.prepare(`
-      INSERT INTO users (email, password, employeeId, role, isActive)
-      VALUES (?, ?, ?, ?, 1)
-    `);
-    const result = stmt.run(email, hashedPassword, employeeId || null, role || 'employee');
+    const result = await pool.query(`
+      INSERT INTO users (email, password, "employeeId", role, "isActive")
+      VALUES ($1, $2, $3, $4, 1)
+      RETURNING id
+    `, [email, hashedPassword, employeeId || null, role || 'employee']);
     
     console.log('User registered:', email);
-    res.json({ success: true, userId: result.lastInsertRowid });
+    res.json({ success: true, userId: result.rows[0].id });
   } catch (error) {
     console.error('Registration error:', error);
     res.status(500).json({ error: 'Failed to register user' });
@@ -887,12 +957,14 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    const user = db.prepare(`
-      SELECT u.*, e.name as employeeName, e.company 
+    const result = await pool.query(`
+      SELECT u.*, e.name as "employeeName", e.company 
       FROM users u 
-      LEFT JOIN employees e ON u.employeeId = e.id 
-      WHERE u.email = ?
-    `).get(email) as any;
+      LEFT JOIN employees e ON u."employeeId" = e.id 
+      WHERE u.email = $1
+    `, [email]);
+    
+    const user = result.rows[0];
     
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
@@ -907,7 +979,7 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     
-    db.prepare('UPDATE users SET lastLogin = ? WHERE id = ?').run(new Date().toISOString(), user.id);
+    await pool.query('UPDATE users SET "lastLogin" = $1 WHERE id = $2', [new Date().toISOString(), user.id]);
     
     const token = jwt.sign(
       { 
@@ -939,7 +1011,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/me', async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -949,12 +1021,14 @@ app.get('/api/auth/me', (req, res) => {
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     
-    const user = db.prepare(`
-      SELECT u.id, u.email, u.role, u.employeeId, e.name as employeeName, e.company
+    const result = await pool.query(`
+      SELECT u.id, u.email, u.role, u."employeeId", e.name as "employeeName", e.company
       FROM users u
-      LEFT JOIN employees e ON u.employeeId = e.id
-      WHERE u.id = ?
-    `).get(decoded.userId) as any;
+      LEFT JOIN employees e ON u."employeeId" = e.id
+      WHERE u.id = $1
+    `, [decoded.userId]);
+    
+    const user = result.rows[0];
     
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
@@ -979,7 +1053,8 @@ app.post('/api/auth/change-password', async (req, res) => {
     
     const { currentPassword, newPassword } = req.body;
     
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(decoded.userId) as any;
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.userId]);
+    const user = result.rows[0];
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -990,7 +1065,7 @@ app.post('/api/auth/change-password', async (req, res) => {
     }
     
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, user.id);
+    await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, user.id]);
     
     console.log('Password changed for:', user.email);
     res.json({ success: true });
@@ -1000,122 +1075,14 @@ app.post('/api/auth/change-password', async (req, res) => {
   }
 });
 
-// ============== USERS MANAGEMENT ==============
-
-// Get all users (admin only)
-app.get('/api/users', (req, res) => {
-  try {
-    const users = db.prepare(`
-      SELECT u.id, u.email, u.role, u.employeeId, u.isActive, u.lastLogin, u.createdAt,
-             u.inviteToken, u.inviteExpires,
-             e.name as employeeName, e.company
-      FROM users u
-      LEFT JOIN employees e ON u.employeeId = e.id
-      ORDER BY u.createdAt DESC
-    `).all();
-    
-    const parsed = users.map((u: any) => ({
-      ...u,
-      isActive: Boolean(u.isActive),
-      isPending: !u.isActive && u.inviteToken !== null,
-      status: !u.isActive && u.inviteToken ? 'pending' : (u.isActive ? 'active' : 'inactive')
-    }));
-    
-    res.json(parsed);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Failed to fetch users' });
-  }
-});
-
-// Update user (role, status, link employee)
-app.patch('/api/users/:id', (req, res) => {
-  try {
-    const { id } = req.params;
-    const { role, isActive, employeeId } = req.body;
-    
-    const current = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as any;
-    if (!current) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    const stmt = db.prepare(`
-      UPDATE users SET role = ?, isActive = ?, employeeId = ? WHERE id = ?
-    `);
-    stmt.run(
-      role ?? current.role,
-      isActive !== undefined ? (isActive ? 1 : 0) : current.isActive,
-      employeeId !== undefined ? employeeId : current.employeeId,
-      id
-    );
-    
-    console.log(`User ${id} updated: role=${role}, isActive=${isActive}, employeeId=${employeeId}`);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error updating user:', error);
-    res.status(500).json({ error: 'Failed to update user' });
-  }
-});
-
-// Delete user
-app.delete('/api/users/:id', (req, res) => {
-  try {
-    const { id } = req.params;
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
-    console.log(`User ${id} deleted`);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ error: 'Failed to delete user' });
-  }
-});
-
-// Resend invite
-app.post('/api/users/:id/resend-invite', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const user = db.prepare(`
-      SELECT u.*, e.name as employeeName 
-      FROM users u 
-      LEFT JOIN employees e ON u.employeeId = e.id 
-      WHERE u.id = ?
-    `).get(id) as any;
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-    
-    if (user.isActive) {
-      return res.status(400).json({ error: 'User already active' });
-    }
-    
-    const crypto = require('crypto');
-    const inviteToken = crypto.randomBytes(32).toString('hex');
-    const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    
-    db.prepare('UPDATE users SET inviteToken = ?, inviteExpires = ? WHERE id = ?')
-      .run(inviteToken, inviteExpires, id);
-    
-    const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invite/${inviteToken}`;
-    await sendInviteEmail(user.email, inviteLink, user.employeeName);
-    
-    console.log('Invite resent to:', user.email);
-    res.json({ success: true, inviteLink });
-  } catch (error) {
-    console.error('Resend invite error:', error);
-    res.status(500).json({ error: 'Failed to resend invite' });
-  }
-});
-
-
 // ============== INVITE SYSTEM ==============
 
 app.post('/api/auth/invite', async (req, res) => {
   try {
     const { email, employeeId, role } = req.body;
     
-    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
-    if (existing) {
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    if (existing.rows.length > 0) {
       return res.status(400).json({ error: 'User already exists with this email' });
     }
     
@@ -1123,25 +1090,27 @@ app.post('/api/auth/invite', async (req, res) => {
     const inviteToken = crypto.randomBytes(32).toString('hex');
     const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     
-    const stmt = db.prepare(`
-      INSERT INTO users (email, password, employeeId, role, isActive, inviteToken, inviteExpires)
-      VALUES (?, '', ?, ?, 0, ?, ?)
-    `);
-    const result = stmt.run(email, employeeId || null, role || 'employee', inviteToken, inviteExpires);
+    const result = await pool.query(`
+      INSERT INTO users (email, password, "employeeId", role, "isActive", "inviteToken", "inviteExpires")
+      VALUES ($1, '', $2, $3, 0, $4, $5)
+      RETURNING id
+    `, [email, employeeId || null, role || 'employee', inviteToken, inviteExpires]);
     
     const inviteLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/invite/${inviteToken}`;
     
     console.log('Invite created for:', email);
     console.log('Invite link:', inviteLink);
     
-    const employeeName = employeeId ? 
-      (db.prepare('SELECT name FROM employees WHERE id = ?').get(employeeId) as any)?.name : 
-      null;
+    let employeeName = null;
+    if (employeeId) {
+      const empResult = await pool.query('SELECT name FROM employees WHERE id = $1', [employeeId]);
+      employeeName = empResult.rows[0]?.name;
+    }
     await sendInviteEmail(email, inviteLink, employeeName);
     
     res.json({ 
       success: true, 
-      userId: result.lastInsertRowid,
+      userId: result.rows[0].id,
       inviteToken,
       inviteLink
     });
@@ -1151,16 +1120,18 @@ app.post('/api/auth/invite', async (req, res) => {
   }
 });
 
-app.get('/api/auth/invite/:token', (req, res) => {
+app.get('/api/auth/invite/:token', async (req, res) => {
   try {
     const { token } = req.params;
     
-    const user = db.prepare(`
-      SELECT u.*, e.name as employeeName 
+    const result = await pool.query(`
+      SELECT u.*, e.name as "employeeName" 
       FROM users u 
-      LEFT JOIN employees e ON u.employeeId = e.id 
-      WHERE u.inviteToken = ?
-    `).get(token) as any;
+      LEFT JOIN employees e ON u."employeeId" = e.id 
+      WHERE u."inviteToken" = $1
+    `, [token]);
+    
+    const user = result.rows[0];
     
     if (!user) {
       return res.status(404).json({ error: 'Invalid invite token' });
@@ -1185,7 +1156,8 @@ app.post('/api/auth/accept-invite', async (req, res) => {
   try {
     const { token, password } = req.body;
     
-    const user = db.prepare('SELECT * FROM users WHERE inviteToken = ?').get(token) as any;
+    const result = await pool.query('SELECT * FROM users WHERE "inviteToken" = $1', [token]);
+    const user = result.rows[0];
     
     if (!user) {
       return res.status(404).json({ error: 'Invalid invite token' });
@@ -1197,9 +1169,9 @@ app.post('/api/auth/accept-invite', async (req, res) => {
     
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    db.prepare(`
-      UPDATE users SET password = ?, isActive = 1, inviteToken = NULL, inviteExpires = NULL WHERE id = ?
-    `).run(hashedPassword, user.id);
+    await pool.query(`
+      UPDATE users SET password = $1, "isActive" = 1, "inviteToken" = NULL, "inviteExpires" = NULL WHERE id = $2
+    `, [hashedPassword, user.id]);
     
     const jwtToken = jwt.sign(
       { 
@@ -1231,11 +1203,11 @@ app.post('/api/auth/accept-invite', async (req, res) => {
 
 // ============== SEED DATA ==============
 
-app.post('/api/seed', (req, res) => {
+app.post('/api/seed', async (req, res) => {
   try {
-    const shopCount = db.prepare('SELECT COUNT(*) as count FROM shops').get() as any;
-    if (shopCount.count > 0) {
-      return res.json({ message: 'Database already has data', shops: shopCount.count });
+    const countResult = await pool.query('SELECT COUNT(*) as count FROM shops');
+    if (parseInt(countResult.rows[0].count) > 0) {
+      return res.json({ message: 'Database already has data', shops: countResult.rows[0].count });
     }
 
     const shops = [
@@ -1251,13 +1223,11 @@ app.post('/api/seed', (req, res) => {
       { id: 10, name: 'Zabbar', company: 'CMZ', isActive: 1, openTime: '09:00', closeTime: '18:00' }
     ];
 
-    const insertShop = db.prepare(`
-      INSERT INTO shops (id, name, company, isActive, openTime, closeTime, requirements, specialRequests, assignedEmployees, rules, staffingConfig)
-      VALUES (?, ?, ?, ?, ?, ?, '[]', '[]', '[]', NULL, NULL)
-    `);
-
     for (const shop of shops) {
-      insertShop.run(shop.id, shop.name, shop.company, shop.isActive, shop.openTime, shop.closeTime);
+      await pool.query(`
+        INSERT INTO shops (name, company, "isActive", "openTime", "closeTime", requirements, "specialRequests", "assignedEmployees", rules, "staffingConfig")
+        VALUES ($1, $2, $3, $4, $5, '[]', '[]', '[]', NULL, NULL)
+      `, [shop.name, shop.company, shop.isActive, shop.openTime, shop.closeTime]);
     }
 
     console.log('Database seeded with initial data');
