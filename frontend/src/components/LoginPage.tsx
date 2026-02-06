@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, LogIn, Loader2 } from 'lucide-react';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
 
 interface LoginPageProps {
   onLogin: (token: string, user: any) => void;
@@ -18,7 +20,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/auth/login', {
+      const response = await fetch(`${api_url}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
